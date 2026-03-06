@@ -1,0 +1,8 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# requirements.txt — Dependencias de producción del SDDV
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Librería criptográfica principal (auditable, basada en OpenSSL)
+cryptography>=41.0.0
+
+# Uso: from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305

@@ -1,0 +1,64 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# requirements-dev.txt — Dependencias de desarrollo y testing
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────
+# TESTING
+# ─────────────────────────────────────────────────────────────────────────
+
+# Framework de testing principal
+pytest>=7.4.0
+
+# Medición de cobertura de código
+pytest-cov>=4.1.0
+
+# Ejecución paralela de tests (más rápido)
+pytest-xdist>=3.3.0
+
+# Timeout para tests que se cuelgan
+pytest-timeout>=2.1.0
+
+# ─────────────────────────────────────────────────────────────────────────
+# LINTING & CODE QUALITY
+# ─────────────────────────────────────────────────────────────────────────
+
+# Formateador de código (PEP 8)
+black>=23.7.0
+
+# Verificador de PEP 8
+flake8>=6.1.0
+
+# Organizador de imports
+isort>=5.12.0
+
+# Análisis estático avanzado
+pylint>=2.17.0
+
+# ─────────────────────────────────────────────────────────────────────────
+# SEGURIDAD
+# ─────────────────────────────────────────────────────────────────────────
+
+# Escáner de vulnerabilidades de seguridad
+bandit[toml]>=1.7.5
+
+# ─────────────────────────────────────────────────────────────────────────
+# DOCUMENTACIÓN & BADGES
+# ─────────────────────────────────────────────────────────────────────────
+
+# Generar badges de cobertura
+coverage-badge>=1.1.0
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INSTALACIÓN
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Instalar dependencias de producción:
+#   pip install -r requirements.txt
+#
+# Instalar dependencias de desarrollo (incluye producción):
+#   pip install -r requirements.txt -r requirements-dev.txt
+#
+# O en una sola línea:
+#   pip install -r requirements.txt -r requirements-dev.txt
+#
+# ═══════════════════════════════════════════════════════════════════════════
