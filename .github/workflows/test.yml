@@ -2,8 +2,12 @@ name: Tests Automatizados AEAD
 
 on:
   # ═══════════════════════════════════════════════════════════════════════════
-  # SOLO se ejecuta en Pull Requests hacia main
-  # (NO en push directo a main para mantener main estable)
+  # Ejecutar únicamente para la rama de prueba concreta y PRs hacia main
+  #
+  # 1. *push* se dispara solo cuando hacemos push a esta rama en particular.
+  # 2. *pull_request* se dispara al abrir PR hacia main (permite verificar antes de
+  #    mezclar).
+  # 3. `workflow_dispatch` permite lanzarlo manualmente desde la pestaña Actions.
   # ═══════════════════════════════════════════════════════════════════════════
   pull_request:
     branches: [ main ]
@@ -12,20 +16,16 @@ on:
       - 'tests/**'
       - '.github/workflows/test.yml'
       - 'requirements*.txt'
-  
-  # También se ejecuta en push a ramas de feature/develop (mientras las trabajas)
+
   push:
     branches:
-      - 'feature/**'
-      - 'develop'
-      - 'test/**'
+      - 'feature/ci-cd-automated-testing'
     paths:
       - 'crypto/**'
       - 'tests/**'
       - '.github/workflows/test.yml'
       - 'requirements*.txt'
-  
-  # Permite ejecutar manualmente desde Actions tab en GitHub
+
   workflow_dispatch:
 
 jobs:
@@ -104,7 +104,7 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────
       - name: Guardar reportes de cobertura
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report-py${{ matrix.python-version }}-${{ matrix.os }}
           path: |
@@ -203,7 +203,7 @@ jobs:
 
       - name: Guardar reporte de seguridad
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-report
           path: bandit-report.json
