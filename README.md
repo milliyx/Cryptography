@@ -197,6 +197,7 @@ El sistema debe generar y encapsular claves automáticamente, evitando manejo ma
 | Nombre | GitHub |
 |---|---|
 | Barrios Aguilar Dulce Michelle | @milliyx |
+| Caballero Martínez Sergio Jair | @sergiocaballeroo |
 | Contreras Colmenero Emilio Sebastian | @SEBASTIANCONTRERAS35 |
 | Martinez Lopez Evan Emiliano | @EvanEmi |
 | Pulido Vazquez Rodrigo | @rothd123 |
