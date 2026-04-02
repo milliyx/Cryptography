@@ -328,7 +328,7 @@ def test_chacha20_ciphertext_modificado_falla():
 
 def test_clave_de_tamano_incorrecto_lanza_error():
     """Pasar una clave de longitud incorrecta debe lanzar ValueError antes del cifrado."""
-    with pytest.raises(ValueError, match="Tamaño de clave incorrecto"):
+    with pytest.raises(ValueError, match="mano de clave incorrecto"):
         encrypt_file(SAMPLE_PLAINTEXT, SAMPLE_FILENAME, key=b"demasiado_corta")
 
 
