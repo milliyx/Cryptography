@@ -9,7 +9,7 @@ import pytest
 from cryptography.exceptions import InvalidSignature
 
 from crypto.keys import generate_keypair, get_fingerprint
-from crypto.aead import encrypt_file
+from crypto.aead import encrypt_file, decrypt_file
 from crypto.signatures import (
     sign_container,
     verify_container,
@@ -151,16 +151,15 @@ def test_flujo_completo_encrypt_then_sign(alice):
     recovered, _ = decrypt_file(container_verificado, key)
     assert recovered == PLAINTEXT
 
-def test_flujo_con_password_encrypt_then_sign(alice):
-    """Flujo completo con modo PASSWORD (v2) + firma."""
-    from crypto.aead import encrypt_file_with_password, decrypt_file_with_password
+def test_flujo_encrypt_then_sign_con_chacha20(alice):
+    """Flujo completo Encrypt-then-Sign usando ChaCha20-Poly1305."""
+    from crypto.aead import Algorithm
 
-    PASSWORD = "mi_password_seguro_2026"
-    container = encrypt_file_with_password(PLAINTEXT, FILENAME, PASSWORD)
+    container, key = encrypt_file(PLAINTEXT, FILENAME, algo=Algorithm.CHACHA20_POLY1305)
 
     signed               = sign_container(container, alice["priv"])
     container_verificado = verify_container(signed, alice["pub"])
-    recovered, _         = decrypt_file_with_password(container_verificado, PASSWORD)
+    recovered, _         = decrypt_file(container_verificado, key)
 
     assert recovered == PLAINTEXT
 
