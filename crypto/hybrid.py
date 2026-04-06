@@ -61,7 +61,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from crypto.aead import Algorithm, NONCE_SIZE, TAG_SIZE, KEY_SIZE
+from crypto.aead import Algorithm, NONCE_SIZE, TAG_SIZE, KEY_SIZE, _make_cipher
 
 MAGIC_HYBRID    = b"SDDH"
 VERSION_HYBRID  = 1
@@ -75,8 +75,18 @@ WRAPPED_KEY_SIZE = KEY_SIZE + TAG_SIZE   # 32 ct + 16 tag = 48
 RECIPIENT_ENTRY_SIZE = FINGERPRINT_SIZE + EPH_PUB_SIZE + WRAP_NONCE_SIZE + WRAPPED_KEY_SIZE
 # = 32 + 32 + 12 + 48 = 124 bytes por destinatario
 
+_HKDF_INFO = b"SDDV-D3-wrap"   # separacion de dominio para la derivacion de wrapping key
+
 
 # ── Gestion de claves X25519 ─────────────────────────────────────────────────
+
+def _pubkey_raw(pub: X25519PublicKey) -> bytes:
+    """Extrae los 32 bytes raw de una clave publica X25519."""
+    return pub.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+
 
 def generate_x25519_keypair() -> Tuple[X25519PrivateKey, X25519PublicKey]:
     """Genera un par de claves X25519 para cifrado hibrido."""
@@ -85,33 +95,22 @@ def generate_x25519_keypair() -> Tuple[X25519PrivateKey, X25519PublicKey]:
     return private_key, public_key
 
 
+def get_x25519_fingerprint_bytes(public_key: X25519PublicKey) -> bytes:
+    """Retorna el fingerprint SHA-256 de la clave publica X25519 como 32 bytes."""
+    return hashlib.sha256(_pubkey_raw(public_key)).digest()
+
+
 def get_x25519_fingerprint(public_key: X25519PublicKey) -> str:
     """
     Retorna el fingerprint SHA-256 de la clave publica X25519 como hex de 64 caracteres.
     Identifica univocamente a un destinatario sin revelar la clave completa.
     """
-    raw = public_key.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-    return hashlib.sha256(raw).hexdigest()
-
-
-def get_x25519_fingerprint_bytes(public_key: X25519PublicKey) -> bytes:
-    """Retorna el fingerprint SHA-256 como 32 bytes (para incluir en el contenedor)."""
-    raw = public_key.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-    return hashlib.sha256(raw).digest()
+    return get_x25519_fingerprint_bytes(public_key).hex()
 
 
 def x25519_public_key_to_bytes(public_key: X25519PublicKey) -> bytes:
     """Serializa una clave publica X25519 a 32 bytes raw."""
-    return public_key.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
+    return _pubkey_raw(public_key)
 
 
 def x25519_public_key_from_bytes(data: bytes) -> X25519PublicKey:
@@ -131,7 +130,7 @@ def _derive_wrapping_key(shared_secret: bytes, fingerprint_bytes: bytes) -> byte
         algorithm=hashes.SHA256(),
         length=KEY_SIZE,
         salt=fingerprint_bytes,
-        info=b"SDDV-D3-wrap",
+        info=_HKDF_INFO,
     )
     return hkdf.derive(shared_secret)
 
@@ -320,7 +319,7 @@ def encrypt_for_recipients(
 
     # 4. DEM: cifrar plaintext con file_key; el AAD es la cabecera completa
     nonce       = os.urandom(NONCE_SIZE)
-    cipher      = AESGCM(file_key) if algo == Algorithm.AES_256_GCM else ChaCha20Poly1305(file_key)
+    cipher      = _make_cipher(algo, file_key)
     ct_with_tag = cipher.encrypt(nonce, plaintext, header)
     ciphertext  = ct_with_tag[:-TAG_SIZE]
     tag         = ct_with_tag[-TAG_SIZE:]
@@ -381,7 +380,7 @@ def decrypt_for_recipient(
         raise ValueError(f"Contenedor con {len(container) - pos} bytes sobrantes")
 
     # DEM: descifrar con file_key; el AAD (header) autentica los metadatos y la lista
-    cipher    = AESGCM(file_key) if algo == Algorithm.AES_256_GCM else ChaCha20Poly1305(file_key)
+    cipher    = _make_cipher(algo, file_key)
     plaintext = cipher.decrypt(nonce, ciphertext + tag, header)
 
     return plaintext, metadata

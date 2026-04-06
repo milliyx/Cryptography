@@ -113,6 +113,11 @@ def generate_key(algo: Algorithm = Algorithm.AES_256_GCM) -> bytes:
     return os.urandom(KEY_SIZE)
 
 
+def _make_cipher(algo: Algorithm, key: bytes):
+    """Instancia el cifrador AEAD correspondiente al algoritmo indicado."""
+    return AESGCM(key) if algo == Algorithm.AES_256_GCM else ChaCha20Poly1305(key)
+
+
 def encrypt_file(
     plaintext: bytes,
     filename: str,
@@ -148,7 +153,7 @@ def encrypt_file(
         )
     header      = _build_header(filename, algo, timestamp)
     nonce       = os.urandom(NONCE_SIZE)
-    cipher      = AESGCM(key) if algo == Algorithm.AES_256_GCM else ChaCha20Poly1305(key)
+    cipher      = _make_cipher(algo, key)
     ct_with_tag = cipher.encrypt(nonce, plaintext, header)
     ciphertext  = ct_with_tag[:-TAG_SIZE]
     tag         = ct_with_tag[-TAG_SIZE:]
@@ -188,6 +193,6 @@ def decrypt_file(container: bytes, key: bytes) -> Tuple[bytes, dict]:
     tag        = container[pos : pos + TAG_SIZE]; pos += TAG_SIZE
     if pos != len(container):
         raise ValueError(f"Contenedor con {len(container) - pos} bytes sobrantes")
-    cipher    = AESGCM(key) if algo == Algorithm.AES_256_GCM else ChaCha20Poly1305(key)
+    cipher    = _make_cipher(algo, key)
     plaintext = cipher.decrypt(nonce, ciphertext + tag, header)
     return plaintext, metadata
