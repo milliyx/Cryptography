@@ -1,14 +1,25 @@
 # Bóveda Digital Segura de Documentos (SDDV)
 
 **Equipo:** Barrios Aguilar Dulce Michelle · Contreras Colmenero Emilio Sebastian · Martínez López Evan Emiliano · Caballero Martínez Sergio Jair  
-**Materia:** Criptografía — Dra. Rocío Aldeco Pérez · UNAM 2026-2  
-**Repositorio:** `feature/d3-hybrid`
+**Materia:** Criptografía — Dra. Rocío Aldeco Pérez · UNAM 2026-2
 
 ---
 
-## Descripción
+## ¿Qué es?
 
-El SDDV es un sistema de cifrado de documentos que garantiza:
+Una aplicación de línea de comandos diseñada para proteger documentos sensibles mediante criptografía moderna. Permite cifrar, firmar y compartir archivos de manera segura sin depender de herramientas tradicionales como el correo electrónico o almacenamiento en la nube, que no ofrecen garantías criptográficas sólidas.
+
+## ¿Qué problema resuelve?
+
+Las herramientas convencionales para compartir archivos no garantizan:
+
+- Confidencialidad del contenido
+- Integridad del archivo
+- Autenticidad del remitente
+
+Este sistema aborda los tres aspectos mediante mecanismos criptográficos formales.
+
+## Garantías de seguridad
 
 - **Confidencialidad** — AES-256-GCM / ChaCha20-Poly1305 (AEAD) — *D2*
 - **Integridad** — tag de 128 bits cubre ciphertext y metadatos — *D2*
@@ -44,16 +55,92 @@ Proyecto/
 
 ---
 
+## Diagrama de arquitectura
+
+![arquitectura](image.png)
+
+- Solo la *Secure Vault Application* y el *Encrypted Key Store* son confiables.
+- Todo almacenamiento, red y contenedores cifrados se consideran no confiables.
+- La seguridad se garantiza criptográficamente, no mediante confianza en infraestructura.
+
+---
+
+## Requerimientos de seguridad
+
+| ID | Requerimiento | Cómo se cumple |
+|---|---|---|
+| **RS-1** | Confidencialidad del contenido — un atacante con el contenedor cifrado no debe poder recuperar el plaintext sin la clave | AES-256-GCM / ChaCha20-Poly1305, clave de 256 bits, nonce CSPRNG por mensaje |
+| **RS-2** | Integridad del contenido — cualquier modificación al contenedor debe detectarse | Tag AEAD de 128 bits cubre ciphertext + AAD (metadatos) |
+| **RS-3** | Autenticidad del remitente — solo el dueño de la llave privada puede generar firma válida | Firma Ed25519 (RFC 8032), EUF-CMA seguro |
+| **RS-4** | Confidencialidad de claves privadas — nunca en texto plano | PEM cifrado PKCS8 con `BestAvailableEncryption` (AES-256-CBC + KDF) |
+| **RS-5** | Protección contra manipulación — alteraciones en metadatos, llave envuelta, tag o firma deben detectarse | Cabecera completa como AAD del DEM + firma Ed25519 sobre contenedor SDDH completo |
+| **RS-6** | Unicidad de nonce — cada operación usa nonce único de 96 bits | `os.urandom(12)` por cifrado; tests verifican unicidad estadística |
+| **RS-7** | Gestión automatizada de claves | `generate_and_save_keypair()` + `encrypt_for_recipients()` envuelven la complejidad |
+
+---
+
+## Modelo de amenaza
+
+### Activos protegidos
+
+- Contenido de archivos
+- Metadatos (filename, timestamp, lista de destinatarios)
+- Claves privadas (Ed25519 firmante, X25519 destinatario)
+- Contraseñas (de protección de PEM)
+- Firmas digitales
+- Nonces
+
+### Adversarios
+
+| ID | Adversario | Capacidades | Limitaciones |
+|---|---|---|---|
+| **ADV-1** | Atacante externo con acceso a almacenamiento | Lee, copia y modifica contenedores | No puede romper AES-256 ni Ed25519 |
+| **ADV-2** | Destinatario malicioso | Lee su archivo legítimamente | No puede falsificar firma del remitente |
+| **ADV-3** | Man-in-the-Middle | Intercepta y sustituye claves públicas | No puede descifrar sin claves privadas |
+| **ADV-4** | Acceso físico temporal | Copia el Encrypted Key Store | No puede descifrarlo sin la contraseña |
+
+### Supuestos de confianza
+
+- Los usuarios eligen contraseñas fuertes.
+- Las claves públicas distribuidas son auténticas (canal de distribución fuera de scope).
+- El SO provee CSPRNG seguro (`/dev/urandom` en Linux/macOS, `BCryptGenRandom` en Windows).
+- El almacenamiento es no confiable.
+- La aplicación no ha sido modificada.
+- No hay malware durante el uso.
+
+### Superficie de ataque
+
+| Punto de entrada | Riesgo | Requisito afectado |
+|---|---|---|
+| Generación de nonce | Reutilización catastrófica en GCM | RS-1, RS-2 |
+| Encrypted Key Store | Fuerza bruta sobre password | RS-4 |
+| Importación de claves públicas | MitM en distribución | RS-3 |
+| Entrada de archivos | DoS / Path traversal | RS-1 |
+| Entrada de contraseña | Exposición en memoria | RS-4 |
+| Verificación de firma | Orden incorrecto (decrypt antes de verify) | RS-3 — mitigado por API combinada `secure_verify_and_decrypt` |
+
+### Restricciones de diseño derivadas
+
+| Requisito | Decisión de diseño |
+|---|---|
+| Confidencialidad | Uso obligatorio de AEAD |
+| Integridad | Metadatos vinculados como AAD |
+| Autenticidad | Firmas Ed25519 sobre contenedor completo |
+| Protección de claves | PKCS8 PEM cifrado (compatible con OpenSSL) |
+| No repetición de nonce | CSPRNG + clave fresca por archivo |
+| Gestión automatizada | Key wrapping híbrido automático (KEM+DEM) |
+
+---
+
 ## Instalación
 
 ```bash
 # Clonar el repositorio
 git clone git@github.com:milliyx/Cryptography.git
 cd Cryptography
-git checkout feature/d3-hybrid
 
 # Instalar dependencias
-pip install cryptography
+pip install cryptography pytest
 ```
 
 ---
@@ -265,21 +352,11 @@ SIGNATURE(64)     Ed25519 sobre TODO lo anterior
 
 ---
 
-## Modelo de amenazas
+## Equipo
 
-**Adversario:** atacante con acceso de lectura/escritura al disco.
-
-**Protegemos contra:**
-- Lectura del contenido sin la clave → ciphertext ilegible
-- Modificación del contenido o metadatos → `InvalidTag` (D2/D3) + `InvalidSignature` (D4)
-- Acceso de usuario no autorizado → `ValueError` en KEM lookup (D3)
-- Suplantación del remitente → `InvalidSignature` en verificación (D4)
-- Re-empaquetado por terceros → fingerprint del firmante incluido en lo firmado (D4)
-- Context manipulation (cambio de filename, recipients, algo) → cubierto por la firma sobre la cabecera completa (D4)
-
-**Fuera de scope:**
-- Compromiso de la memoria del proceso en ejecución
-- Canal de distribución de llaves públicas (se asume auténtico — no hay PKI)
-- Revocación de llaves comprometidas
-- Replay attacks (no hay nonce de sesión ni timestamp autoritativo)
-- Ataques de denegación de servicio
+| Nombre | GitHub |
+|---|---|
+| Barrios Aguilar Dulce Michelle | @milliyx |
+| Caballero Martínez Sergio Jair | @sergiocaballeroo |
+| Contreras Colmenero Emilio Sebastian | @SEBASTIANCONTRERAS35 |
+| Martínez López Evan Emiliano | @EvanEmi |
