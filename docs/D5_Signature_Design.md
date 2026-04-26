@@ -1,4 +1,4 @@
-# D4 — Diseño del Módulo de Firma Digital
+# D5 — Diseño del Módulo de Firma Digital
 
 **Bóveda Digital Segura de Documentos (SDDV)**
 
@@ -14,7 +14,7 @@
 
 Hasta D3 el sistema garantiza **confidencialidad** (cifrado AEAD) y **control de acceso** (KEM+DEM multi-destinatario), pero **no garantiza quién creó el archivo**. Cualquiera con la llave pública del destinatario puede generar un contenedor SDDH legítimo y hacerlo pasar por enviado por otra persona.
 
-D4 cierra ese hueco con **firma digital**: el receptor podrá verificar que un archivo fue creado por un usuario específico y no ha sido modificado desde que se firmó. Las garantías que D4 añade son:
+D5 cierra ese hueco con **firma digital**: el receptor podrá verificar que un archivo fue creado por un usuario específico y no ha sido modificado desde que se firmó. Las garantías que D5 añade son:
 
 1. **Autenticación de origen** — el receptor sabe quién firmó.
 2. **Integridad cross-layer** — cualquier modificación al ciphertext, los metadatos, o la lista de destinatarios se detecta.
@@ -128,7 +128,7 @@ Ed25519 (RFC 8032 §5.1) usa **PureEdDSA**: hashea internamente con SHA-512 y fi
 
 ### 4.1 ¿Por qué firmar el ciphertext y no el plaintext?
 
-Optamos por **Encrypt-then-Sign**: primero D3 cifra produciendo el SDDH, luego D4 firma sobre el SDDH completo.
+Optamos por **Encrypt-then-Sign**: primero D3 cifra produciendo el SDDH, luego D5 firma sobre el SDDH completo.
 
 **Razones:**
 
@@ -181,7 +181,7 @@ signer_fingerprint = SHA-256( raw_ed25519_public_key_32_bytes )
 ### Por qué fingerprint en lugar de la llave pública directa
 
 - **Tamaño consistente**: 32 bytes siempre, independiente del esquema de firma.
-- **Compatibilidad con D3**: D3 ya usa fingerprints SHA-256 para identificar destinatarios X25519. D4 usa la misma estructura para Ed25519, manteniendo coherencia.
+- **Compatibilidad con D3**: D3 ya usa fingerprints SHA-256 para identificar destinatarios X25519. D5 usa la misma estructura para Ed25519, manteniendo coherencia.
 - **Ofuscación trivial**: el fingerprint no revela la llave pública (aunque la pubkey Ed25519 generalmente no es secreta, este pequeño paso facilita una eventual rotación a esquemas que requieran ocultar pubkeys).
 - **No requiere PKI**: el destinatario conoce a priori el fingerprint del firmante esperado (ej. publicado en un sitio web o intercambiado por canal seguro). No hay autoridades certificadoras.
 
@@ -233,17 +233,17 @@ La firma Ed25519 se almacena como **64 bytes raw** según RFC 8032 §3.4 — sin
 6. Retornar (plaintext, metadata).
 ```
 
-El paso 4 **siempre** ocurre antes del paso 5. Esa es la garantía de seguridad de D4.
+El paso 4 **siempre** ocurre antes del paso 5. Esa es la garantía de seguridad de D5.
 
 ---
 
-## 7. Modelo de amenazas de D4
+## 7. Modelo de amenazas de D5
 
 ### Adversarios considerados
 
-| Nombre | Capacidad | D4 protege? |
+| Nombre | Capacidad | D5 protege? |
 |---|---|---|
-| **ADV-1** lectura del medio | Lee el contenedor en disco/red | ✅ Confidencialidad por D3, integridad por D2/D3, autenticidad por D4 |
+| **ADV-1** lectura del medio | Lee el contenedor en disco/red | ✅ Confidencialidad por D3, integridad por D2/D3, autenticidad por D5 |
 | **ADV-2** escritura del medio | Modifica el contenedor en tránsito | ✅ Cualquier byte modificado invalida la firma |
 | **ADV-3** suplantación del remitente | Genera contenedores falsos pretendiendo ser Alice | ✅ Sin la priv de Alice no puede producir firma válida sobre `SDDH || SIGS || fp_alice` |
 | **ADV-4** re-empaquetado | Toma SDDH legítimo de Alice y lo re-firma como Eve | ✅ El fingerprint del footer cambia → el verificador que espera a Alice rechaza |
@@ -254,7 +254,7 @@ El paso 4 **siempre** ocurre antes del paso 5. Esa es la garantía de seguridad 
 - **Existential Unforgeability under Chosen Message Attack (EUF-CMA)**: bajo el modelo estándar, Ed25519 es EUF-CMA seguro. Sin la llave privada del firmante, generar una firma válida sobre cualquier mensaje (incluso uno que el firmante haya firmado mil veces antes con variaciones) requiere $\geq 2^{128}$ operaciones.
 - **Strong Unforgeability**: Ed25519 es además SUF-CMA seguro: el atacante no puede ni siquiera producir una **firma diferente** sobre un mensaje ya firmado. Esto es relevante porque significa que las firmas no se pueden "manipular" sin invalidarlas.
 
-### Fuera del scope de D4
+### Fuera del scope de D5
 
 | Amenaza | Por qué no la cubrimos |
 |---|---|
@@ -300,9 +300,9 @@ pytest tests/test_d4_hybrid_signed.py -v
 
 ---
 
-## 9. Resumen de garantías de SDDV completo (D2 + D3 + D4)
+## 9. Resumen de garantías de SDDV completo (D2 + D3 + D5)
 
-| Garantía | D2 | D3 | D4 |
+| Garantía | D2 | D3 | D5 |
 |---|---|---|---|
 | Confidencialidad | ✅ AES-256-GCM / ChaCha20-Poly1305 | ✅ con file_key envuelta por destinatario | — |
 | Integridad del ciphertext | ✅ tag AEAD 128-bit | ✅ tag AEAD 128-bit | ✅ + firma Ed25519 |
@@ -312,5 +312,5 @@ pytest tests/test_d4_hybrid_signed.py -v
 | Detección de re-empaquetado | — | — | ✅ por binding de fingerprint |
 | No-repudio criptográfico | — | — | ✅ EUF-CMA |
 
-Después de D4, un destinatario que recibe un archivo SDDV puede afirmar:
+Después de D5, un destinatario que recibe un archivo SDDV puede afirmar:
 > *"Este archivo fue firmado por la persona cuya llave pública Ed25519 produce el fingerprint X, y no ha sido modificado en ningún byte desde que se firmó."*
