@@ -1,9 +1,9 @@
 """
 crypto/secure_send.py
 =====================
-API de alto nivel para el flujo D4 completo del SDDV.
+API de alto nivel para el flujo D5 completo del SDDV.
 
-Combina D3 (cifrado hibrido multi-destinatario) y D4 (firma digital) en
+Combina D3 (cifrado hibrido multi-destinatario) y D5 (firma digital) en
 dos funciones que fuerzan el orden de operaciones correcto:
 
     Cifrar -> Anadir metadata -> Firmar -> Almacenar
@@ -19,7 +19,7 @@ Por que una API combinada en lugar de exponer las primitivas sueltas:
      dos primitivas SOLO se deben combinar de una forma, exponer solo la
      combinacion correcta. El que escribe la app no puede equivocarse.
 
-  3. El codigo cliente queda alineado al rubric del entregable D4:
+  3. El codigo cliente queda alineado al rubric del entregable D5:
      "Encrypt -> Add metadata -> Sign -> Store" en una linea.
 
 Las primitivas sueltas (encrypt_for_recipients, sign_hybrid_container, etc)
@@ -60,7 +60,7 @@ def secure_encrypt_and_sign(
     timestamp: Optional[int] = None,
 ) -> bytes:
     """
-    Flujo de envio D4 completo: cifra hibridamente y firma el resultado.
+    Flujo de envio D5 completo: cifra hibridamente y firma el resultado.
 
     Orden de operaciones (Encrypt-then-Sign):
         1. Genera file_key aleatorio (DEM key).
@@ -101,7 +101,7 @@ def secure_verify_and_decrypt(
     recipient_priv: X25519PrivateKey,
 ) -> Tuple[bytes, dict]:
     """
-    Flujo de recepcion D4 completo: verifica firma y, solo si pasa, descifra.
+    Flujo de recepcion D5 completo: verifica firma y, solo si pasa, descifra.
 
     Orden de operaciones (Verify-first):
         1. Verifica la firma Ed25519 con la llave publica esperada.

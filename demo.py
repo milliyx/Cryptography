@@ -195,10 +195,10 @@ def escenario_4():
         ok("Lista de destinatarios protegida por AAD — manipulacion detectada")
 
 # =============================================================================
-# ESCENARIO 5: D4 - Flujo completo Encrypt -> Sign -> Verify -> Decrypt
+# ESCENARIO 5: D5 - Flujo completo Encrypt -> Sign -> Verify -> Decrypt
 # =============================================================================
 def escenario_5():
-    header(5, "D4 - Cifrado hibrido + Firma digital + Verify-first")
+    header(5, "D5 - Cifrado hibrido + Firma digital + Verify-first")
 
     # Alice firma. Bob y Carol son destinatarios. Eve es atacante.
     alice_priv, alice_pub = generate_keypair()              # Ed25519 firmante
@@ -285,7 +285,7 @@ def escenario_5():
 if __name__ == "__main__":
     print(f"\n{BOLD}{'='*60}")
     print("  SDDV - Boveda Digital Segura de Documentos")
-    print("  Demo final - D2 + D3 + D4 (Cifrado hibrido + Firma)")
+    print("  Demo final - D2 + D3 + D5 (Cifrado hibrido + Firma)")
     print(f"{'='*60}{RESET}")
 
     escenario_1(); separador()

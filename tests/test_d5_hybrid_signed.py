@@ -1,9 +1,9 @@
 """
 tests/test_d4_hybrid_signed.py
 ==============================
-Tests del entregable D4 — firma digital sobre contenedores hibridos (SDDH).
+Tests del entregable D5 — firma digital sobre contenedores hibridos (SDDH).
 
-Cubre los escenarios obligatorios del rubric D4:
+Cubre los escenarios obligatorios del rubric D5:
     1. Firma valida -> archivo aceptado
     2. Ciphertext modificado -> rechazado
     3. Metadata modificada -> rechazado (filename, timestamp, algo)
@@ -53,7 +53,7 @@ from crypto.secure_send import (
 
 # ─────────────────────────── datos de prueba ─────────────────────────────────
 
-PLAINTEXT = b"Documento confidencial UNAM 2026-2 - prueba D4 firma + cifrado hibrido."
+PLAINTEXT = b"Documento confidencial UNAM 2026-2 - prueba D5 firma + cifrado hibrido."
 FILENAME  = "expediente_secreto.pdf"
 
 
@@ -110,7 +110,7 @@ def signed_sddh(alice, bob_x25519, carol_x25519):
 # ════════════════════════════════════════════════════════════════════════════
 
 def test_firma_valida_sobre_sddh_aceptada(alice, bob_x25519, signed_sddh):
-    """El flujo completo D4 debe recuperar el plaintext original sin error."""
+    """El flujo completo D5 debe recuperar el plaintext original sin error."""
     plaintext, metadata = secure_verify_and_decrypt(
         signed_sddh,
         expected_signer_pub=alice["pub"],
@@ -414,7 +414,7 @@ def test_ed25519_firma_es_determinista(alice, bob_x25519):
 
 
 def test_chacha20_tambien_funciona_con_firma(alice, bob_x25519):
-    """El flujo D4 funciona tanto con AES-GCM como con ChaCha20-Poly1305."""
+    """El flujo D5 funciona tanto con AES-GCM como con ChaCha20-Poly1305."""
     signed = secure_encrypt_and_sign(
         plaintext=PLAINTEXT,
         filename=FILENAME,

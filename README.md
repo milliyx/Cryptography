@@ -24,8 +24,8 @@ Este sistema aborda los tres aspectos mediante mecanismos criptográficos formal
 - **Confidencialidad** — AES-256-GCM / ChaCha20-Poly1305 (AEAD) — *D2*
 - **Integridad** — tag de 128 bits cubre ciphertext y metadatos — *D2*
 - **Compartición segura** — cifrado híbrido multi-destinatario (X25519 ECDH + KEM+DEM) — *D3*
-- **Autenticación de origen** — firmas Ed25519 sobre contenedores híbridos completos, patrón verify-first — *D4*
-- **Detección de re-empaquetado** — binding del fingerprint del firmante a los datos firmados — *D4*
+- **Autenticación de origen** — firmas Ed25519 sobre contenedores híbridos completos, patrón verify-first — *D5*
+- **Detección de re-empaquetado** — binding del fingerprint del firmante a los datos firmados — *D5*
 
 ---
 
@@ -36,20 +36,20 @@ Proyecto/
 ├── crypto/
 │   ├── aead.py          # D2 — Cifrado AEAD (AES-256-GCM, ChaCha20-Poly1305)
 │   ├── keys.py          # Gestión de llaves Ed25519 (PKCS8 PEM)
-│   ├── signatures.py    # Firmas Ed25519 + wrappers para SDDH (D4)
+│   ├── signatures.py    # Firmas Ed25519 + wrappers para SDDH (D5)
 │   ├── hybrid.py        # D3 — Cifrado híbrido multi-destinatario (X25519)
-│   └── secure_send.py   # D4 — API combinada Encrypt+Sign / Verify+Decrypt
+│   └── secure_send.py   # D5 — API combinada Encrypt+Sign / Verify+Decrypt
 ├── tests/
 │   ├── test_aead.py             # 27 tests — módulo AEAD
 │   ├── test_keys.py             # 19 tests — gestión de llaves
 │   ├── test_signatures.py       # 17 tests — firmas digitales (SDDV)
 │   ├── test_hybrid.py           # 31 tests — cifrado híbrido
-│   └── test_d4_hybrid_signed.py # 28 tests — D4 firma sobre SDDH
+│   └── test_d5_hybrid_signed.py # 28 tests — D5 firma sobre SDDH
 ├── docs/
 │   ├── architecture.svg         # Diagrama de arquitectura
 │   ├── D2_Encryption_Design.md  # Documentación D2
-│   └── D4_Signature_Design.md   # Documentación D4
-├── demo.py              # Script de demo en vivo (D2 + D3 + D4)
+│   └── D5_Signature_Design.md   # Documentación D5
+├── demo.py              # Script de demo en vivo (D2 + D3 + D5)
 └── README.md
 ```
 
@@ -148,7 +148,7 @@ pip install cryptography pytest
 ## Ejecutar tests
 
 ```bash
-# Todos los tests (122 en total: 94 D2/D3 + 28 D4)
+# Todos los tests (122 en total: 94 D2/D3 + 28 D5)
 pytest tests/ -v
 
 # Por módulo
@@ -156,7 +156,7 @@ pytest tests/test_aead.py -v
 pytest tests/test_keys.py -v
 pytest tests/test_signatures.py -v
 pytest tests/test_hybrid.py -v
-pytest tests/test_d4_hybrid_signed.py -v
+pytest tests/test_d5_hybrid_signed.py -v
 ```
 
 ---
@@ -175,7 +175,7 @@ El script ejecuta los 5 escenarios automáticamente:
 | 2 | Compartido → ambos destinatarios descifran | ✔ Alice y Bob obtienen el mismo documento |
 | 3 | No-destinatario intenta descifrar | ✔ `ValueError: no está autorizado` |
 | 4 | Archivo modificado → descifrado falla | ✔ `InvalidTag` en 3 variantes de ataque |
-| 5 | **D4 — Firmar + cifrar + verify-first + descifrar** | ✔ Bob/Carol descifran tras verificar; rechazo de re-firmado, metadata modificada y firma eliminada |
+| 5 | **D5 — Firmar + cifrar + verify-first + descifrar** | ✔ Bob/Carol descifran tras verificar; rechazo de re-firmado, metadata modificada y firma eliminada |
 
 ---
 
@@ -251,7 +251,7 @@ container_verificado = verify_container(signed, pub)
 plaintext, meta = decrypt_file(container_verificado, key)
 ```
 
-### D4 — Cifrado híbrido + firma (API combinada, recomendado)
+### D5 — Cifrado híbrido + firma (API combinada, recomendado)
 
 ```python
 from crypto.secure_send import secure_encrypt_and_sign, secure_verify_and_decrypt
@@ -318,7 +318,7 @@ CT_LEN(4) + CIPHERTEXT
 TAG(16)
 ```
 
-### SDDH firmado (D4 — autenticación de origen)
+### SDDH firmado (D5 — autenticación de origen)
 ```
 [ contenedor SDDH completo, tal como D3 ]    ← cubierto por la firma
 SIGN_MAGIC(4)     b"SIGS"                    ← cubierto por la firma

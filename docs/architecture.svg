@@ -1,0 +1,149 @@
+<svg viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#475569"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#16a34a"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="620" fill="#f8fafc" rx="12"/>
+
+  <!-- Title -->
+  <text x="480" y="38" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">SDDV — Secure Digital Document Vault</text>
+  <text x="480" y="58" text-anchor="middle" font-size="13" fill="#64748b">Architecture &amp; Data Flow Diagram</text>
+
+  <!-- ── TRUST BOUNDARY: USER ZONE ── -->
+  <rect x="20" y="72" width="280" height="520" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="160" y="94" text-anchor="middle" font-size="11" font-weight="700" fill="#1d4ed8">USER ZONE (trusted)</text>
+
+  <!-- Plaintext -->
+  <rect x="50" y="108" width="220" height="52" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="160" y="130" text-anchor="middle" font-size="13" font-weight="700" fill="#1e40af">Plaintext File</text>
+  <text x="160" y="148" text-anchor="middle" font-size="11" fill="#3b82f6">documento.pdf</text>
+
+  <!-- Keystore -->
+  <rect x="50" y="198" width="220" height="80" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="160" y="218" text-anchor="middle" font-size="13" font-weight="700" fill="#1e40af">Keystore</text>
+  <text x="160" y="235" text-anchor="middle" font-size="11" fill="#1e3a8a">Ed25519 priv key (PKCS8 PEM)</text>
+  <text x="160" y="250" text-anchor="middle" font-size="11" fill="#1e3a8a">X25519 priv key (en memoria)</text>
+  <text x="160" y="265" text-anchor="middle" font-size="11" fill="#1e3a8a">Ed25519 pub key (PEM, compartible)</text>
+
+  <!-- User password note -->
+  <rect x="50" y="305" width="220" height="36" rx="8" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.2"/>
+  <text x="160" y="322" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">Password del usuario</text>
+  <text x="160" y="337" text-anchor="middle" font-size="10" fill="#92400e">protege la llave privada en disco</text>
+
+  <!-- ── CRYPTO ENGINE ── -->
+  <rect x="330" y="72" width="300" height="520" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="480" y="94" text-anchor="middle" font-size="11" font-weight="700" fill="#15803d">CRYPTO ENGINE</text>
+
+  <!-- aead.py -->
+  <rect x="355" y="108" width="250" height="70" rx="8" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="480" y="128" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">crypto/aead.py</text>
+  <text x="480" y="145" text-anchor="middle" font-size="11" fill="#166534">AES-256-GCM | ChaCha20-Poly1305</text>
+  <text x="480" y="161" text-anchor="middle" font-size="10" fill="#166534">96-bit CSPRNG nonce  ·  128-bit tag  ·  AAD</text>
+
+  <!-- keys.py -->
+  <rect x="355" y="198" width="250" height="70" rx="8" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="480" y="218" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">crypto/keys.py</text>
+  <text x="480" y="235" text-anchor="middle" font-size="11" fill="#166534">Ed25519 keygen  ·  PKCS8 save/load</text>
+  <text x="480" y="251" text-anchor="middle" font-size="10" fill="#166534">SHA-256 fingerprint (64-char hex)</text>
+
+  <!-- signatures.py -->
+  <rect x="355" y="288" width="250" height="70" rx="8" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="480" y="308" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">crypto/signatures.py</text>
+  <text x="480" y="325" text-anchor="middle" font-size="11" fill="#166534">Encrypt-then-Sign  ·  Ed25519</text>
+  <text x="480" y="341" text-anchor="middle" font-size="10" fill="#166534">SIGN_MAGIC | fingerprint | 64-byte sig</text>
+
+  <!-- hybrid.py -->
+  <rect x="355" y="378" width="250" height="80" rx="8" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="480" y="398" text-anchor="middle" font-size="13" font-weight="700" fill="#14532d">crypto/hybrid.py</text>
+  <text x="480" y="415" text-anchor="middle" font-size="11" fill="#166534">KEM+DEM  ·  X25519 ECDH  ·  HKDF</text>
+  <text x="480" y="431" text-anchor="middle" font-size="10" fill="#166534">file_key cifrada por destinatario</text>
+  <text x="480" y="447" text-anchor="middle" font-size="10" fill="#166534">recipient list en AAD  ·  SDDH container</text>
+
+  <!-- ── STORAGE ZONE ── -->
+  <rect x="660" y="72" width="280" height="380" rx="10" fill="#fdf4ff" stroke="#9333ea" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="800" y="94" text-anchor="middle" font-size="11" font-weight="700" fill="#7e22ce">STORAGE (untrusted disk)</text>
+
+  <!-- SDDV container -->
+  <rect x="685" y="108" width="230" height="100" rx="8" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.5"/>
+  <text x="800" y="128" text-anchor="middle" font-size="12" font-weight="700" fill="#6b21a8">SDDV Container (D2)</text>
+  <text x="800" y="145" text-anchor="middle" font-size="10" fill="#7c3aed">MAGIC(4) | VER(1) | ALGO(1)</text>
+  <text x="800" y="160" text-anchor="middle" font-size="10" fill="#7c3aed">TIMESTAMP(8) | FNAME  ← AAD</text>
+  <text x="800" y="175" text-anchor="middle" font-size="10" fill="#7c3aed">NONCE(12) | CT | TAG(16)</text>
+  <text x="800" y="192" text-anchor="middle" font-size="9" fill="#9333ea">magic: b"SDDV"</text>
+
+  <!-- SDDH container -->
+  <rect x="685" y="228" width="230" height="110" rx="8" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.5"/>
+  <text x="800" y="248" text-anchor="middle" font-size="12" font-weight="700" fill="#6b21a8">SDDH Container (D3)</text>
+  <text x="800" y="265" text-anchor="middle" font-size="10" fill="#7c3aed">MAGIC(4) | VER | ALGO | TS | FNAME</text>
+  <text x="800" y="280" text-anchor="middle" font-size="10" fill="#7c3aed">RCPT_COUNT | per recipient:  ← AAD</text>
+  <text x="800" y="295" text-anchor="middle" font-size="10" fill="#7c3aed">  FP(32)|EPH_PUB(32)|NONCE(12)|WK(48)</text>
+  <text x="800" y="310" text-anchor="middle" font-size="10" fill="#7c3aed">NONCE(12) | CT | TAG(16)</text>
+  <text x="800" y="325" text-anchor="middle" font-size="9" fill="#9333ea">magic: b"SDDH"  ·  124 bytes/recipient</text>
+
+  <!-- Signed container -->
+  <rect x="685" y="358" width="230" height="70" rx="8" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.5"/>
+  <text x="800" y="378" text-anchor="middle" font-size="12" font-weight="700" fill="#6b21a8">Signed Container</text>
+  <text x="800" y="395" text-anchor="middle" font-size="10" fill="#7c3aed">[SDDV/SDDH] | SIGS(4)</text>
+  <text x="800" y="410" text-anchor="middle" font-size="10" fill="#7c3aed">FP(32) | Ed25519-sig(64)</text>
+
+  <!-- ── ARROWS ── -->
+  <!-- Plaintext -> aead.py -->
+  <line x1="270" y1="134" x2="353" y2="134" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="311" y="128" text-anchor="middle" font-size="10" fill="#64748b">encrypt</text>
+
+  <!-- Keystore -> keys.py -->
+  <line x1="270" y1="238" x2="353" y2="238" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- password -> keystore -->
+  <line x1="160" y1="305" x2="160" y2="278" stroke="#ca8a04" stroke-width="1.3" stroke-dasharray="4,2" marker-end="url(#arrow)"/>
+
+  <!-- aead.py -> SDDV container -->
+  <line x1="607" y1="143" x2="683" y2="158" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="645" y="143" text-anchor="middle" font-size="10" fill="#64748b">write</text>
+
+  <!-- hybrid.py -> SDDH container -->
+  <line x1="607" y1="418" x2="683" y2="318" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="648" y="380" text-anchor="middle" font-size="10" fill="#64748b">write</text>
+
+  <!-- signatures.py -> Signed container -->
+  <line x1="607" y1="323" x2="683" y2="393" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="660" y="350" text-anchor="middle" font-size="10" fill="#64748b">sign</text>
+
+  <!-- ── THREAT MODEL ── -->
+  <rect x="20" y="490" width="920" height="110" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="480" y="512" text-anchor="middle" font-size="13" font-weight="700" fill="#991b1b">Threat Model</text>
+
+  <!-- Threats -->
+  <rect x="35" y="522" width="200" height="66" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1"/>
+  <text x="135" y="540" text-anchor="middle" font-size="11" font-weight="600" fill="#7f1d1d">Attacker en disco</text>
+  <text x="135" y="556" text-anchor="middle" font-size="10" fill="#991b1b">Lee archivos del vault</text>
+  <text x="135" y="571" text-anchor="middle" font-size="10" fill="#991b1b">→ Bloqueado: ciphertext</text>
+  <text x="135" y="583" text-anchor="middle" font-size="10" fill="#991b1b">   sin la key = ruido</text>
+
+  <rect x="250" y="522" width="200" height="66" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1"/>
+  <text x="350" y="540" text-anchor="middle" font-size="11" font-weight="600" fill="#7f1d1d">Modificacion de datos</text>
+  <text x="350" y="556" text-anchor="middle" font-size="10" fill="#991b1b">Altera ciphertext o AAD</text>
+  <text x="350" y="571" text-anchor="middle" font-size="10" fill="#991b1b">→ Bloqueado: tag AEAD</text>
+  <text x="350" y="583" text-anchor="middle" font-size="10" fill="#991b1b">   invalida el contenedor</text>
+
+  <rect x="465" y="522" width="200" height="66" rx="6" fill="#fee2e2" stroke="#dc2626" stroke-width="1"/>
+  <text x="565" y="540" text-anchor="middle" font-size="11" font-weight="600" fill="#7f1d1d">Destinatario no autorizado</text>
+  <text x="565" y="556" text-anchor="middle" font-size="10" fill="#991b1b">Intenta descifrar el vault</text>
+  <text x="565" y="571" text-anchor="middle" font-size="10" fill="#991b1b">→ Bloqueado: KEM solo</text>
+  <text x="565" y="583" text-anchor="middle" font-size="10" fill="#991b1b">   descifra destinatarios</text>
+
+  <rect x="680" y="522" width="240" height="66" rx="6" fill="#fef9c3" stroke="#ca8a04" stroke-width="1"/>
+  <text x="800" y="540" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">Supuestos / Out of scope</text>
+  <text x="800" y="556" text-anchor="middle" font-size="10" fill="#92400e">La memoria del proceso es confiable</text>
+  <text x="800" y="571" text-anchor="middle" font-size="10" fill="#92400e">Canal de distribución de llaves pub</text>
+  <text x="800" y="583" text-anchor="middle" font-size="10" fill="#92400e">   es autentico (fuera de scope)</text>
+</svg>
