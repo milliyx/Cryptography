@@ -181,7 +181,7 @@ def is_signed(data: bytes) -> bool:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# D4 — Wrappers para contenedores hibridos (SDDH)
+# D5 — Wrappers para contenedores hibridos (SDDH)
 # ════════════════════════════════════════════════════════════════════════════
 #
 # El patron Encrypt-then-Sign aplica identicamente a contenedores SDDH (D3):
@@ -221,7 +221,7 @@ def verify_hybrid_container(signed_sddh: bytes, signer_pub) -> bytes:
     Verifica la firma de un contenedor SDDH firmado y retorna el SDDH limpio.
 
     Esta funcion debe llamarse SIEMPRE antes de invocar decrypt_for_recipient.
-    Si lanza, no se debe descifrar — esa es la garantia de seguridad de D4.
+    Si lanza, no se debe descifrar — esa es la garantia de seguridad de D5.
 
     Parametros:
         signed_sddh : contenedor SDDH con footer de firma
