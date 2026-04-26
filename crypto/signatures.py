@@ -178,3 +178,61 @@ def is_signed(data: bytes) -> bool:
         return False
     footer_start = len(data) - SIGN_FOOTER_SIZE
     return data[footer_start:footer_start + 4] == SIGN_MAGIC
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# D4 — Wrappers para contenedores hibridos (SDDH)
+# ════════════════════════════════════════════════════════════════════════════
+#
+# El patron Encrypt-then-Sign aplica identicamente a contenedores SDDH (D3):
+# se firma el blob completo del contenedor cifrado. La firma cubre por
+# transitividad TODO lo que el contenedor SDDH cubre con su propio AAD:
+# magic, version, algo, timestamp, filename, lista de destinatarios completa,
+# nonce del DEM, ciphertext y tag.
+#
+# Estas funciones existen como API semantica explicita: el codigo cliente
+# debe leer "firmo el contenedor hibrido" y no "firmo bytes arbitrarios".
+
+def sign_hybrid_container(sddh_container: bytes, signer_priv) -> bytes:
+    """
+    Firma un contenedor hibrido SDDH (D3) siguiendo Encrypt-then-Sign.
+
+    El layout resultante es identico al de los contenedores SDDV firmados:
+        SDDH_container || SIGN_MAGIC(4) || FINGERPRINT(32) || SIGNATURE(64)
+
+    La firma cubre el contenedor SDDH completo, por lo que cualquier
+    modificacion (ciphertext, tag, lista de destinatarios, metadata, nonce)
+    invalida la verificacion. Como el AEAD del DEM ya cubre el AAD por
+    construccion, el atacante necesita romper Ed25519 ademas de GCM para
+    forjar un contenedor.
+
+    Parametros:
+        sddh_container : contenedor hibrido producido por encrypt_for_recipients
+        signer_priv    : Ed25519PrivateKey del firmante
+
+    Retorna:
+        bytes — contenedor SDDH firmado, listo para almacenar/transmitir
+    """
+    return sign_container(sddh_container, signer_priv)
+
+
+def verify_hybrid_container(signed_sddh: bytes, signer_pub) -> bytes:
+    """
+    Verifica la firma de un contenedor SDDH firmado y retorna el SDDH limpio.
+
+    Esta funcion debe llamarse SIEMPRE antes de invocar decrypt_for_recipient.
+    Si lanza, no se debe descifrar — esa es la garantia de seguridad de D4.
+
+    Parametros:
+        signed_sddh : contenedor SDDH con footer de firma
+        signer_pub  : Ed25519PublicKey del firmante esperado
+
+    Retorna:
+        bytes — el contenedor SDDH original (sin el footer de firma),
+                listo para pasar a decrypt_for_recipient
+
+    Lanza:
+        InvalidSignature — firma invalida o llave publica equivocada
+        ValueError       — formato del contenedor firmado invalido
+    """
+    return verify_container(signed_sddh, signer_pub)
