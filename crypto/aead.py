@@ -22,10 +22,10 @@ Formato del contenedor (binario, version 1):
   FNAME_LEN(2)  longitud del nombre, big-endian uint16
   FILENAME      variable, UTF-8
   --- fin del AAD ---
-  NONCE(12)     aleatorio, CSPRNG del SO
-  CT_LEN(4)     longitud del ciphertext, big-endian uint32
+  NONCE(12)      aleatorio, CSPRNG del SO
+  CT_LEN(4)      longitud del ciphertext, big-endian uint32
   CIPHERTEXT    variable
-  TAG(16)       tag de autenticacion AEAD
+  TAG(16)        tag de autenticacion AEAD
 
 La cabecera completa (MAGIC..FILENAME) es el AAD: se autentica pero no
 se cifra. Modificar cualquier byte de la cabecera invalida el TAG.
@@ -38,11 +38,12 @@ import struct
 import time
 import logging
 from enum import IntEnum
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
 
+# Configuración de rastro de auditoría
 logger = logging.getLogger("SDDV.Security")
 
 MAGIC   = b"SDDV"
@@ -54,6 +55,14 @@ KEY_SIZE       = 32
 VALID_MAGIC    = {b"SDDV", b"SDDH"}
 VALID_ALGO_ID  = {0x01, 0x02}
 MIN_HEADER_LEN = 16
+
+# Offsets de estructura para legibilidad y auditoría
+OFF_MAGIC     = 0
+OFF_VERSION   = 4
+OFF_ALGO      = 5
+OFF_TIMESTAMP = 6
+OFF_FNAME_LEN = 14
+OFF_FILENAME  = 16
 
 
 class Algorithm(IntEnum):
@@ -77,12 +86,14 @@ def _validate_container_header(data: bytes) -> None:
       - el byte de algo_id (indice 5) no es 0x01 ni 0x02
     """
     if not isinstance(data, (bytes, bytearray)):
+        logger.warning("Intento de proceso con tipo de dato no soportado.")
         raise ValueError("Invalid container")
     if len(data) < MIN_HEADER_LEN:
         raise ValueError("Invalid container")
-    if bytes(data[:4]) not in VALID_MAGIC:
+    if bytes(data[OFF_MAGIC:OFF_VERSION]) not in VALID_MAGIC:
+        logger.error("Fallo de validacion: Magic bytes invalidos.")
         raise ValueError("Invalid container")
-    if data[5] not in VALID_ALGO_ID:
+    if data[OFF_ALGO] not in VALID_ALGO_ID:
         raise ValueError("Invalid container")
 
 
@@ -108,26 +119,29 @@ def _build_header(
     )
 
 
-def _parse_header(data: bytes) -> Tuple[dict, int]:
+def _parse_header(data: bytes) -> Tuple[Dict[str, Any], int]:
     """
     Parsea la cabecera del contenedor y retorna (metadata, header_end_offset).
 
     Lanza ValueError si el formato es invalido.
     """
-    if len(data) < 16:
+    if len(data) < MIN_HEADER_LEN:
         raise ValueError("Contenedor demasiado corto")
-    if data[:4] != MAGIC:
+    if data[OFF_MAGIC:OFF_VERSION] != MAGIC:
         raise ValueError("Magic bytes invalidos - es esto un contenedor SDDV?")
-    version = data[4]
+    version = data[OFF_VERSION]
     if version != VERSION:
         raise ValueError(f"Version no soportada: {version}")
-    algo      = Algorithm(data[5])
-    timestamp = struct.unpack(">Q", data[6:14])[0]
-    fname_len = struct.unpack(">H", data[14:16])[0]
-    header_end = 16 + fname_len
+    
+    algo      = Algorithm(data[OFF_ALGO])
+    timestamp = struct.unpack(">Q", data[OFF_TIMESTAMP:OFF_FNAME_LEN])[0]
+    fname_len = struct.unpack(">H", data[OFF_FNAME_LEN:OFF_FILENAME])[0]
+    header_end = OFF_FILENAME + fname_len
+    
     if len(data) < header_end:
         raise ValueError("Cabecera truncada")
-    filename = data[16:header_end].decode("utf-8")
+    
+    filename = data[OFF_FILENAME:header_end].decode("utf-8")
     metadata = {
         "version":   version,
         "algo":      algo,
@@ -177,17 +191,21 @@ def encrypt_file(
             f"Tamano de clave incorrecto: se esperaban {KEY_SIZE} bytes, "
             f"se recibieron {len(key)}"
         )
+    
     header      = _build_header(filename, algo, timestamp)
     nonce       = os.urandom(NONCE_SIZE)
     cipher      = AESGCM(key) if algo == Algorithm.AES_256_GCM else ChaCha20Poly1305(key)
     ct_with_tag = cipher.encrypt(nonce, plaintext, header)
+    
     ciphertext  = ct_with_tag[:-TAG_SIZE]
     tag         = ct_with_tag[-TAG_SIZE:]
+    
     container   = header + nonce + struct.pack(">I", len(ciphertext)) + ciphertext + tag
+    logger.info(f"Cifrado exitoso del archivo: {filename}")
     return container, key
 
 
-def decrypt_file(container: bytes, key: bytes) -> Tuple[bytes, dict]:
+def decrypt_file(container: bytes, key: bytes) -> Tuple[bytes, Dict[str, Any]]:
     """
     Descifra un contenedor SDDV y retorna (plaintext, metadata).
 
@@ -205,21 +223,37 @@ def decrypt_file(container: bytes, key: bytes) -> Tuple[bytes, dict]:
         InvalidTag  -- clave incorrecta o contenedor manipulado
         ValueError  -- formato invalido o bytes sobrantes
     """
-    _validate_container_header(container)  # fix: reject invalid input early
+    _validate_container_header(container)
     metadata, header_end = _parse_header(container)
+    
     header = container[:header_end]
     algo   = metadata["algo"]
     pos    = header_end
+    
     if len(container) < pos + NONCE_SIZE + 4:
         raise ValueError("Contenedor truncado: faltan nonce o ct_len")
+    
     nonce  = container[pos : pos + NONCE_SIZE]; pos += NONCE_SIZE
     ct_len = struct.unpack(">I", container[pos : pos + 4])[0]; pos += 4
+    
     if len(container) < pos + ct_len + TAG_SIZE:
         raise ValueError("Contenedor truncado: faltan ciphertext o tag")
+    
     ciphertext = container[pos : pos + ct_len]; pos += ct_len
     tag        = container[pos : pos + TAG_SIZE]; pos += TAG_SIZE
+    
     if pos != len(container):
         raise ValueError(f"Contenedor con {len(container) - pos} bytes sobrantes")
-    cipher    = AESGCM(key) if algo == Algorithm.AES_256_GCM else ChaCha20Poly1305(key)
-    plaintext = cipher.decrypt(nonce, ciphertext + tag, header)
-    return plaintext, metadata
+    
+    cipher = AESGCM(key) if algo == Algorithm.AES_256_GCM else ChaCha20Poly1305(key)
+    
+    try:
+        plaintext = cipher.decrypt(nonce, ciphertext + tag, header)
+        logger.info(f"Descifrado y verificacion de integridad exitosa: {metadata['filename']}")
+        return plaintext, metadata
+    except InvalidTag:
+        logger.critical(
+            f"AUDITORIA: Fallo de integridad detectado en '{metadata.get('filename', 'Unknown')}'. "
+            "El contenedor ha sido manipulado o la clave es incorrecta."
+        )
+        raise InvalidTag("clave incorrecta o contenedor manipulado")
