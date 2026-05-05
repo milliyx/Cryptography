@@ -61,7 +61,15 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from crypto.aead import Algorithm, NONCE_SIZE, TAG_SIZE, KEY_SIZE, _validate_filename
+from crypto.aead import (
+    Algorithm,
+    NONCE_SIZE,
+    TAG_SIZE,
+    KEY_SIZE,
+    DEFAULT_MAX_AGE,
+    _validate_filename,
+    _validate_timestamp,
+)
 
 MAGIC_HYBRID    = b"SDDH"
 VERSION_HYBRID  = 1
@@ -334,21 +342,26 @@ def encrypt_for_recipients(
 def decrypt_for_recipient(
     container: bytes,
     private_key: X25519PrivateKey,
+    max_age_seconds: Optional[int] = DEFAULT_MAX_AGE,
 ) -> Tuple[bytes, dict]:
     """
     Descifra un contenedor hibrido usando la clave privada X25519 del destinatario.
 
     Parametros:
-        container   : bytes del contenedor SDDH
-        private_key : clave privada X25519 del destinatario
+        container       : bytes del contenedor SDDH
+        private_key     : clave privada X25519 del destinatario
+        max_age_seconds : ventana de freshness en segundos. Default 7 dias.
+                          Pasar None deshabilita validacion (CWE-294).
 
     Retorna: (plaintext, metadata)
 
     Lanza:
-        ValueError  — si el contenedor esta malformado o el destinatario no esta en la lista
-        InvalidTag  — si la clave es incorrecta o alguna parte del contenedor fue manipulada
+        ValueError  — contenedor malformado, filename inseguro, timestamp
+                      fuera de ventana, o destinatario no autorizado
+        InvalidTag  — clave incorrecta o contenedor manipulado
     """
     metadata, header_end = _parse_hybrid_header(container)
+    _validate_timestamp(metadata["timestamp"], max_age_seconds)
     header = container[:header_end]
     algo   = metadata["algo"]
 

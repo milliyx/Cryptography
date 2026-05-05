@@ -38,7 +38,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PublicKey,
 )
 
-from crypto.aead import Algorithm
+from crypto.aead import Algorithm, DEFAULT_MAX_AGE
 from crypto.hybrid import (
     encrypt_for_recipients,
     decrypt_for_recipient,
@@ -99,6 +99,7 @@ def secure_verify_and_decrypt(
     signed_container: bytes,
     expected_signer_pub: Ed25519PublicKey,
     recipient_priv: X25519PrivateKey,
+    max_age_seconds: Optional[int] = DEFAULT_MAX_AGE,
 ) -> Tuple[bytes, dict]:
     """
     Flujo de recepcion D5 completo: verifica firma y, solo si pasa, descifra.
@@ -142,7 +143,9 @@ def secure_verify_and_decrypt(
     # 1. VERIFICAR — si esto falla, abortar ANTES de tocar cripto pesada
     sddh_clean = verify_hybrid_container(signed_container, expected_signer_pub)
 
-    # 2. DESCIFRAR — solo si la firma paso
-    plaintext, metadata = decrypt_for_recipient(sddh_clean, recipient_priv)
+    # 2. DESCIFRAR (con validacion de freshness para evitar replay, CWE-294)
+    plaintext, metadata = decrypt_for_recipient(
+        sddh_clean, recipient_priv, max_age_seconds=max_age_seconds
+    )
 
     return plaintext, metadata

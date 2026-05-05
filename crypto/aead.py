@@ -53,6 +53,37 @@ KEY_SIZE   = 32
 # Limite de longitud para filename (filesystems mainstream limitan a 255 bytes)
 MAX_FILENAME_LEN = 255
 
+# Parametros de validacion de freshness (CWE-294 — Replay Attacks)
+DEFAULT_MAX_AGE = 7 * 24 * 60 * 60   # 7 dias por defecto
+MAX_FUTURE_SKEW = 5 * 60             # 5 minutos de tolerancia hacia el futuro
+
+
+def _validate_timestamp(timestamp: int, max_age_seconds: Optional[int]) -> None:
+    """
+    Valida freshness del timestamp (CWE-294 — Replay Attack).
+
+    Si max_age_seconds es None, no se valida edad (modo legacy/explicito).
+    Si max_age_seconds es int, rechaza:
+      - timestamps mas viejos que max_age_seconds (replay)
+      - timestamps mas de MAX_FUTURE_SKEW segundos en el futuro (clock skew abuse)
+
+    Lanza ValueError si el timestamp esta fuera de ventana.
+    """
+    if max_age_seconds is None:
+        return
+    now = int(time.time())
+    age = now - timestamp
+    if age > max_age_seconds:
+        raise ValueError(
+            f"timestamp demasiado antiguo: {age} segundos "
+            f"(max permitido: {max_age_seconds})"
+        )
+    if age < -MAX_FUTURE_SKEW:
+        raise ValueError(
+            f"timestamp en el futuro: {-age} segundos "
+            f"(max skew permitido: {MAX_FUTURE_SKEW})"
+        )
+
 
 def _validate_filename(filename: str) -> None:
     """
@@ -198,7 +229,11 @@ def encrypt_file(
     return container, key
 
 
-def decrypt_file(container: bytes, key: bytes) -> Tuple[bytes, dict]:
+def decrypt_file(
+    container: bytes,
+    key: bytes,
+    max_age_seconds: Optional[int] = DEFAULT_MAX_AGE,
+) -> Tuple[bytes, dict]:
     """
     Descifra un contenedor SDDV y retorna (plaintext, metadata).
 
@@ -207,16 +242,23 @@ def decrypt_file(container: bytes, key: bytes) -> Tuple[bytes, dict]:
     lanza InvalidTag sin exponer ningun byte del plaintext.
 
     Parametros:
-        container : bytes del contenedor SDDV
-        key       : clave de 32 bytes usada al cifrar
+        container       : bytes del contenedor SDDV
+        key             : clave de 32 bytes usada al cifrar
+        max_age_seconds : ventana de freshness en segundos. Si el timestamp
+                          del contenedor es mas antiguo que esto, se rechaza
+                          (proteccion contra replay attacks, CWE-294).
+                          Default: 7 dias. Pasar None deshabilita la
+                          validacion (no recomendado en produccion).
 
     Retorna: (plaintext, metadata_dict)
 
     Lanza:
         InvalidTag  -- clave incorrecta o contenedor manipulado
-        ValueError  -- formato invalido o bytes sobrantes
+        ValueError  -- formato invalido, filename inseguro, timestamp fuera
+                       de la ventana de freshness, o bytes sobrantes
     """
     metadata, header_end = _parse_header(container)
+    _validate_timestamp(metadata["timestamp"], max_age_seconds)
     header = container[:header_end]
     algo   = metadata["algo"]
     pos    = header_end

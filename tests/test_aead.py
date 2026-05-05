@@ -94,9 +94,10 @@ def test_roundtrip_nombre_con_caracteres_unicode():
 
 def test_roundtrip_preserva_timestamp():
     """El timestamp que se pasa al cifrar debe recuperarse en los metadatos."""
-    ts = 1_700_000_000  # timestamp fijo para el test
+    ts = 1_700_000_000  # timestamp fijo para el test (anterior a la ventana de freshness)
     container, key = encrypt_file(SAMPLE_PLAINTEXT, SAMPLE_FILENAME, timestamp=ts)
-    _, metadata = decrypt_file(container, key)
+    # max_age_seconds=None deshabilita la validacion de freshness para este test
+    _, metadata = decrypt_file(container, key, max_age_seconds=None)
     assert metadata["timestamp"] == ts
 
 
