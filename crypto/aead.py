@@ -34,6 +34,7 @@ Dependencias: pip install cryptography
 """
 
 import os
+import posixpath
 import struct
 import time
 from enum import IntEnum
@@ -49,6 +50,43 @@ NONCE_SIZE = 12
 TAG_SIZE   = 16
 KEY_SIZE   = 32
 
+# Limite de longitud para filename (filesystems mainstream limitan a 255 bytes)
+MAX_FILENAME_LEN = 255
+
+
+def _validate_filename(filename: str) -> None:
+    """
+    Valida que el filename sea seguro para uso en filesystem.
+
+    Rechaza (CWE-22 — Path Traversal):
+      - separadores de path: '/', '\\\\'
+      - referencias a directorio padre: '..'
+      - rutas absolutas (Unix '/' o Windows 'C:')
+      - bytes nulos (truncamiento de path en C-strings)
+      - caracteres de control
+      - longitud > 255 bytes
+
+    Lanza ValueError si el filename es inseguro.
+    """
+    if not isinstance(filename, str):
+        raise ValueError("filename debe ser str")
+    if not filename:
+        raise ValueError("filename no puede estar vacio")
+    if len(filename.encode("utf-8")) > MAX_FILENAME_LEN:
+        raise ValueError(f"filename excede {MAX_FILENAME_LEN} bytes")
+    if "\x00" in filename:
+        raise ValueError("filename contiene byte nulo (null byte injection)")
+    if any(ord(c) < 0x20 for c in filename):
+        raise ValueError("filename contiene caracteres de control")
+    if "/" in filename or "\\" in filename:
+        raise ValueError("filename contiene separadores de path")
+    if filename in (".", ".."):
+        raise ValueError("filename no puede ser '.' o '..'")
+    if len(filename) >= 2 and filename[1] == ":":
+        raise ValueError("filename parece ruta absoluta de Windows")
+    if posixpath.normpath(filename) != filename:
+        raise ValueError("filename contiene componentes de path no canonicos")
+
 
 class Algorithm(IntEnum):
     AES_256_GCM       = 1
@@ -63,6 +101,7 @@ def _build_header(
     timestamp: Optional[int] = None,
 ) -> bytes:
     """Construye la cabecera del contenedor (= AAD del cifrado AEAD)."""
+    _validate_filename(filename)
     if timestamp is None:
         timestamp = int(time.time())
     fname_bytes = filename.encode("utf-8")
@@ -97,6 +136,9 @@ def _parse_header(data: bytes) -> Tuple[dict, int]:
     if len(data) < header_end:
         raise ValueError("Cabecera truncada")
     filename = data[16:header_end].decode("utf-8")
+    # Defense-in-depth: rechazar filenames inseguros aun si el contenedor fue
+    # cifrado con una version vulnerable de encrypt_file (CWE-22).
+    _validate_filename(filename)
     metadata = {
         "version":   version,
         "algo":      algo,

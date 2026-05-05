@@ -61,7 +61,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from crypto.aead import Algorithm, NONCE_SIZE, TAG_SIZE, KEY_SIZE
+from crypto.aead import Algorithm, NONCE_SIZE, TAG_SIZE, KEY_SIZE, _validate_filename
 
 MAGIC_HYBRID    = b"SDDH"
 VERSION_HYBRID  = 1
@@ -203,6 +203,7 @@ def _build_hybrid_header(
       MAGIC(4) + VERSION(1) + ALGO(1) + TIMESTAMP(8) +
       FNAME_LEN(2) + FNAME + RECIPIENT_COUNT(2) + [ENTRY x N]
     """
+    _validate_filename(filename)
     if timestamp is None:
         timestamp = int(time.time())
     fname_bytes = filename.encode("utf-8")
@@ -242,6 +243,8 @@ def _parse_hybrid_header(data: bytes) -> Tuple[dict, int]:
     if len(data) < pos + 2:
         raise ValueError("Cabecera truncada: falta RECIPIENT_COUNT")
     filename     = data[16:pos].decode("utf-8")
+    # Defense-in-depth: rechazar filenames inseguros (CWE-22).
+    _validate_filename(filename)
     n_recipients = struct.unpack(">H", data[pos : pos + 2])[0]
     pos += 2
 
