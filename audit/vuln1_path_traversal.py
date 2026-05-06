@@ -64,18 +64,22 @@ def reproducir_path_traversal_sddv():
         "....//....//etc/secret",            # double-dot bypass
     ]
 
-    print(f"\n  El atacante cifra {len(payload)} bytes con cada uno de estos")
-    print(f"  filenames maliciosos. El sistema los acepta sin validacion:\n")
+    print(f"\n  El atacante intenta cifrar {len(payload)} bytes con cada uno")
+    print(f"  de estos filenames maliciosos:\n")
 
     for nombre in nombres_maliciosos:
         try:
             container, key = encrypt_file(payload, nombre)
-            # Descifrar y ver que metadata['filename'] regresa el nombre malicioso tal cual
-            plaintext, meta = decrypt_file(container, key)
-            print(f"  [ACEPTADO] filename = {nombre!r}")
-            print(f"             metadata['filename'] retornado = {meta['filename']!r}")
+            try:
+                plaintext, meta = decrypt_file(container, key)
+                print(f"  [VULNERABLE - ACEPTADO] filename = {nombre!r}")
+                print(f"             metadata['filename'] retornado = {meta['filename']!r}")
+            except Exception as e:
+                print(f"  [PARCHE - DESCIFRADO RECHAZADO] {nombre!r}")
+                print(f"             {type(e).__name__}: {e}")
         except Exception as e:
-            print(f"  [RECHAZADO] {nombre!r} -> {type(e).__name__}: {e}")
+            print(f"  [PARCHE - CIFRADO RECHAZADO] {nombre!r}")
+            print(f"             {type(e).__name__}: {e}")
         print()
 
 
@@ -92,13 +96,17 @@ def reproducir_path_traversal_sddh():
         "/etc/cron.d/backdoor",
     ]
 
-    print(f"\n  El atacante cifra para Bob con filenames maliciosos:\n")
+    print(f"\n  El atacante intenta cifrar para Bob con filenames maliciosos:\n")
 
     for nombre in nombres_maliciosos:
-        container = encrypt_for_recipients(payload, nombre, [bob_pub])
-        plaintext, meta = decrypt_for_recipient(container, bob_priv)
-        print(f"  [ACEPTADO] filename = {nombre!r}")
-        print(f"             metadata['filename'] retornado = {meta['filename']!r}")
+        try:
+            container = encrypt_for_recipients(payload, nombre, [bob_pub])
+            plaintext, meta = decrypt_for_recipient(container, bob_priv)
+            print(f"  [VULNERABLE - ACEPTADO] filename = {nombre!r}")
+            print(f"             metadata['filename'] retornado = {meta['filename']!r}")
+        except Exception as e:
+            print(f"  [PARCHE - RECHAZADO] {nombre!r}")
+            print(f"             {type(e).__name__}: {e}")
         print()
 
 
@@ -133,10 +141,22 @@ def reproducir_explotacion_concreta():
     print(f"\n  El atacante construye filename relativo: {rel_path!r}")
 
     payload = b"contenido_malicioso=true\n"
-    container, key = encrypt_file(payload, rel_path)
+    try:
+        container, key = encrypt_file(payload, rel_path)
+    except Exception as e:
+        print(f"\n  [PARCHE BLOQUEA EL ATAQUE EN LA FASE DE CIFRADO]")
+        print(f"  encrypt_file rechazo el filename malicioso:")
+        print(f"  {type(e).__name__}: {e}")
+        return
 
     # Aplicacion vulnerable descifra y guarda con el filename
-    plaintext, meta = decrypt_file(container, key)
+    try:
+        plaintext, meta = decrypt_file(container, key)
+    except Exception as e:
+        print(f"\n  [PARCHE BLOQUEA EL ATAQUE EN LA FASE DE DESCIFRADO]")
+        print(f"  decrypt_file rechazo el filename malicioso:")
+        print(f"  {type(e).__name__}: {e}")
+        return
     print(f"  Aplicacion recibe metadata['filename'] = {meta['filename']!r}")
 
     target_path = os.path.join(out_dir, meta["filename"])

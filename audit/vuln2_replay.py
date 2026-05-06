@@ -70,13 +70,18 @@ def reproducir_replay_sddv():
     print(f"\n  Tiempo presente: {fmt_ts(int(time.time()))}")
     print(f"  Atacante reentrega el mismo contenedor (sin modificarlo).")
     print(f"  Bob descifra:")
-    plaintext_recovered, meta = decrypt_file(container, key)
-    print(f"    timestamp leido: {fmt_ts(meta['timestamp'])}")
-    print(f"    edad del mensaje: {(time.time() - meta['timestamp']) / 86400:.0f} dias")
-    print(f"    contenido recuperado: {plaintext_recovered!r}")
-    print(f"\n  [!!! VULNERABILIDAD CONFIRMADA !!!]")
-    print(f"  El sistema acepto un mensaje cuyo timestamp es de hace mas de")
-    print(f"  {(time.time() - meta['timestamp']) / 86400:.0f} dias sin protestar.")
+    try:
+        plaintext_recovered, meta = decrypt_file(container, key)
+        print(f"    timestamp leido: {fmt_ts(meta['timestamp'])}")
+        print(f"    edad del mensaje: {(time.time() - meta['timestamp']) / 86400:.0f} dias")
+        print(f"    contenido recuperado: {plaintext_recovered!r}")
+        print(f"\n  [!!! VULNERABLE - VULNERABILIDAD CONFIRMADA !!!]")
+        print(f"  El sistema acepto un mensaje cuyo timestamp es de hace mas de")
+        print(f"  {(time.time() - meta['timestamp']) / 86400:.0f} dias sin protestar.")
+    except Exception as e:
+        print(f"\n  [PARCHE - REPLAY BLOQUEADO]")
+        print(f"  decrypt_file rechazo el contenedor antiguo:")
+        print(f"  {type(e).__name__}: {e}")
 
 
 # ───── Caso 2: Replay de contenedor firmado D5 (caso real) ───────────────────
@@ -114,22 +119,23 @@ def reproducir_replay_d5_signed():
     print(f"\n  Bob recibe el contenedor en {fmt_ts(int(time.time()))}:")
     print(f"  >>> secure_verify_and_decrypt(signed_container, alice_sign_pub, bob_priv)")
 
-    plaintext, meta = secure_verify_and_decrypt(signed_container, alice_sign_pub, bob_priv)
+    try:
+        plaintext, meta = secure_verify_and_decrypt(signed_container, alice_sign_pub, bob_priv)
 
-    edad_segundos = time.time() - meta["timestamp"]
-    edad_dias     = edad_segundos / 86400
+        edad_segundos = time.time() - meta["timestamp"]
+        edad_dias     = edad_segundos / 86400
 
-    print(f"\n  RESULTADO:")
-    print(f"    [OK firma]   sistema acepto la firma como valida")
-    print(f"    [OK descifre] sistema devolvio el plaintext: {plaintext!r}")
-    print(f"    timestamp del mensaje: {fmt_ts(meta['timestamp'])}")
-    print(f"    edad real del mensaje: {edad_dias:.0f} dias ({edad_segundos/86400/365:.1f} anios)")
+        print(f"\n  RESULTADO:")
+        print(f"    [OK firma]   sistema acepto la firma como valida")
+        print(f"    [OK descifre] sistema devolvio el plaintext: {plaintext!r}")
+        print(f"    edad real del mensaje: {edad_dias:.0f} dias ({edad_segundos/86400/365:.1f} anios)")
 
-    print(f"\n  [!!! VULNERABILIDAD CONFIRMADA !!!]")
-    print(f"  Bob acepto como autentico un mensaje firmado hace {edad_dias:.0f} dias.")
-    print(f"  El sistema no valida ninguna ventana de freshness.")
-    print(f"  Si Alice cambio de opinion, revoco la autorizacion, o simplemente")
-    print(f"  ya no esta autorizada a aprobar transferencias, Bob no se entera.")
+        print(f"\n  [!!! VULNERABLE - VULNERABILIDAD CONFIRMADA !!!]")
+        print(f"  Bob acepto como autentico un mensaje firmado hace {edad_dias:.0f} dias.")
+    except Exception as e:
+        print(f"\n  [PARCHE - REPLAY BLOQUEADO]")
+        print(f"  secure_verify_and_decrypt rechazo el contenedor antiguo:")
+        print(f"  {type(e).__name__}: {e}")
 
 
 # ───── Caso 3: Replay con timestamp futuro (clock skew abuse) ────────────────
@@ -145,13 +151,16 @@ def reproducir_replay_timestamp_futuro():
     print(f"  con timestamp del FUTURO: {fmt_ts(ts_futuro)}")
 
     container, key = encrypt_file(plaintext, "futuro.txt", timestamp=ts_futuro)
-    plaintext_rec, meta = decrypt_file(container, key)
-
-    print(f"\n  Bob descifra y obtiene metadata['timestamp'] = {fmt_ts(meta['timestamp'])}")
-    print(f"  El sistema NO rechaza este timestamp imposible.")
-    print(f"\n  [!!! VULNERABILIDAD COMPLEMENTARIA !!!]")
-    print(f"  El sistema deberia rechazar timestamps significativamente en el")
-    print(f"  futuro (mas alla de un margen razonable de clock skew).")
+    try:
+        plaintext_rec, meta = decrypt_file(container, key)
+        print(f"\n  Bob descifra y obtiene metadata['timestamp'] = {fmt_ts(meta['timestamp'])}")
+        print(f"  El sistema NO rechaza este timestamp imposible.")
+        print(f"\n  [!!! VULNERABLE - VULNERABILIDAD COMPLEMENTARIA !!!]")
+        print(f"  El sistema deberia rechazar timestamps significativamente en el futuro.")
+    except Exception as e:
+        print(f"\n  [PARCHE - TIMESTAMP FUTURO BLOQUEADO]")
+        print(f"  decrypt_file rechazo el contenedor con timestamp del futuro:")
+        print(f"  {type(e).__name__}: {e}")
 
 
 # ───── main ───────────────────────────────────────────────────────────────────

