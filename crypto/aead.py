@@ -57,6 +57,12 @@ MAX_FILENAME_LEN = 255
 DEFAULT_MAX_AGE = 7 * 24 * 60 * 60   # 7 dias por defecto
 MAX_FUTURE_SKEW = 5 * 60             # 5 minutos de tolerancia hacia el futuro
 
+# Tope superior del ciphertext en un contenedor (CWE-770 — Resource Exhaustion).
+# El campo CT_LEN es uint32 (hasta 4 GiB), pero permitir esa magnitud abre la
+# puerta a DoS por agotamiento de memoria al construir el slice. 100 MiB es
+# suficiente para el caso de uso (documentos) y atrapa containers hostiles.
+MAX_CIPHERTEXT_SIZE = 100 * 1024 * 1024  # 100 MiB
+
 
 def validate_timestamp(timestamp: int, max_age_seconds: Optional[int]) -> None:
     """
@@ -83,6 +89,52 @@ def validate_timestamp(timestamp: int, max_age_seconds: Optional[int]) -> None:
             f"timestamp en el futuro: {-age} segundos "
             f"(max skew permitido: {MAX_FUTURE_SKEW})"
         )
+
+
+def validate_ciphertext_length(ct_len: int) -> None:
+    """
+    Valida que ct_len no exceda MAX_CIPHERTEXT_SIZE (CWE-770 / CWE-400).
+
+    El campo CT_LEN del contenedor es uint32 (hasta 4 GiB). Sin tope, un
+    contenedor manipulado con ct_len enorme provoca asignacion de memoria
+    proporcional al valor — DoS trivial. Atajamos antes de cualquier slice.
+
+    Lanza ValueError si ct_len excede el tope.
+    """
+    if ct_len > MAX_CIPHERTEXT_SIZE:
+        raise ValueError(
+            f"ciphertext demasiado grande: {ct_len} bytes "
+            f"(maximo permitido: {MAX_CIPHERTEXT_SIZE})"
+        )
+
+
+def safe_path_join(out_dir: str, filename: str) -> str:
+    """
+    Construye un path seguro out_dir/filename garantizando que el resultado
+    permanezca dentro de out_dir (CWE-22 — defensa adicional al consumir
+    metadata['filename'] de un contenedor descifrado).
+
+    Aplica validate_filename y verifica con realpath que el path final tenga
+    a out_dir como prefijo. Esto cubre casos donde el filename ya estaba en
+    un contenedor antiguo sin validacion (compatibilidad hacia atras).
+
+    Lanza ValueError si el filename es inseguro o si el path final escapa
+    del directorio destino.
+
+    Retorna: ruta absoluta segura.
+    """
+    validate_filename(filename)
+    out_dir_abs  = os.path.realpath(out_dir)
+    candidate    = os.path.realpath(os.path.join(out_dir_abs, filename))
+    # Asegurar terminador de path para que prefix-check no acepte
+    # /tmp/out_dirEVIL como dentro de /tmp/out_dir.
+    out_dir_norm = out_dir_abs + os.sep
+    if not (candidate == out_dir_abs or candidate.startswith(out_dir_norm)):
+        raise ValueError(
+            f"path resultante escapa del directorio destino: {candidate!r} "
+            f"no esta dentro de {out_dir_abs!r}"
+        )
+    return candidate
 
 
 def validate_filename(filename: str) -> None:
@@ -171,6 +223,12 @@ def _parse_header(data: bytes) -> Tuple[dict, int]:
     if len(data) < 16:
         raise ValueError("Contenedor demasiado corto")
     if data[:4] != MAGIC:
+        # Detectar el caso comun de pasar un contenedor hibrido a la API SDDV
+        if data[:4] == b"SDDH":
+            raise ValueError(
+                "Contenedor hibrido SDDH pasado a decrypt_file (D2). "
+                "Use decrypt_for_recipient (crypto.hybrid) para SDDH."
+            )
         raise ValueError("Magic bytes invalidos - es esto un contenedor SDDV?")
     version = data[4]
     if version != VERSION:
@@ -281,6 +339,8 @@ def decrypt_file(
         raise ValueError("Contenedor truncado: faltan nonce o ct_len")
     nonce  = container[pos : pos + NONCE_SIZE]; pos += NONCE_SIZE
     ct_len = struct.unpack(">I", container[pos : pos + 4])[0]; pos += 4
+    # Tope superior antes del slice (CWE-770).
+    validate_ciphertext_length(ct_len)
     if len(container) < pos + ct_len + TAG_SIZE:
         raise ValueError("Contenedor truncado: faltan ciphertext o tag")
     ciphertext = container[pos : pos + ct_len]; pos += ct_len

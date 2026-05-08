@@ -67,6 +67,7 @@ from crypto.aead import (
     DEFAULT_MAX_AGE,
     validate_filename,
     validate_timestamp,
+    validate_ciphertext_length,
     _build_header_prefix,
 )
 
@@ -81,6 +82,12 @@ WRAPPED_KEY_SIZE = KEY_SIZE + TAG_SIZE   # 32 ct + 16 tag = 48
 
 RECIPIENT_ENTRY_SIZE = FINGERPRINT_SIZE + EPH_PUB_SIZE + WRAP_NONCE_SIZE + WRAPPED_KEY_SIZE
 # = 32 + 32 + 12 + 48 = 124 bytes por destinatario
+
+# Tope superior de destinatarios por contenedor (CWE-770 — Resource Exhaustion).
+# El campo es uint16 (hasta 65535), pero un contenedor con tantas entradas
+# inflaria la cabecera a ~8 MiB. 1024 cubre cualquier caso realista (broadcast
+# a un grupo) y rechaza valores hostiles antes de iterar.
+MAX_RECIPIENTS = 1024
 
 
 # ── Gestion de claves X25519 ─────────────────────────────────────────────────
@@ -241,6 +248,12 @@ def _parse_hybrid_header(data: bytes) -> Tuple[dict, int]:
     validate_filename(filename)
     n_recipients = struct.unpack(">H", data[pos : pos + 2])[0]
     pos += 2
+    # Tope antes de iterar (CWE-770).
+    if n_recipients > MAX_RECIPIENTS:
+        raise ValueError(
+            f"RECIPIENT_COUNT excede el tope: {n_recipients} "
+            f"(maximo permitido: {MAX_RECIPIENTS})"
+        )
 
     recipients = []
     for i in range(n_recipients):
@@ -301,6 +314,11 @@ def encrypt_for_recipients(
     """
     if not recipients:
         raise ValueError("Se necesita al menos un destinatario")
+    if len(recipients) > MAX_RECIPIENTS:
+        raise ValueError(
+            f"Demasiados destinatarios: {len(recipients)} "
+            f"(maximo permitido: {MAX_RECIPIENTS})"
+        )
 
     # 1. Generar file_key aleatorio (DEM key)
     file_key = os.urandom(KEY_SIZE)
@@ -375,6 +393,8 @@ def decrypt_for_recipient(
         raise ValueError("Contenedor truncado: faltan nonce o ct_len")
     nonce  = container[pos : pos + NONCE_SIZE]; pos += NONCE_SIZE
     ct_len = struct.unpack(">I", container[pos : pos + 4])[0]; pos += 4
+    # Tope superior antes del slice (CWE-770).
+    validate_ciphertext_length(ct_len)
     if len(container) < pos + ct_len + TAG_SIZE:
         raise ValueError("Contenedor truncado: faltan ciphertext o tag")
     ciphertext = container[pos : pos + ct_len]; pos += ct_len

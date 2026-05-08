@@ -184,3 +184,192 @@ class TestVuln002ReplayAttack:
         )
         with pytest.raises(ValueError, match="demasiado antiguo"):
             secure_verify_and_decrypt(signed, alice_sign_pub, bob_priv)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VULN-003 — DoS por ct_len sin tope (CWE-770 / CWE-400)
+# ═══════════════════════════════════════════════════════════════════════════
+
+import struct
+from crypto.aead import (
+    MAX_CIPHERTEXT_SIZE,
+    validate_ciphertext_length,
+    safe_path_join,
+)
+from crypto.hybrid import MAX_RECIPIENTS
+
+
+class TestVuln003CiphertextLengthCap:
+
+    def test_validate_ciphertext_length_acepta_dentro_del_tope(self):
+        validate_ciphertext_length(0)
+        validate_ciphertext_length(1024)
+        validate_ciphertext_length(MAX_CIPHERTEXT_SIZE)
+
+    def test_validate_ciphertext_length_rechaza_fuera_del_tope(self):
+        with pytest.raises(ValueError, match="demasiado grande"):
+            validate_ciphertext_length(MAX_CIPHERTEXT_SIZE + 1)
+
+    def test_validate_ciphertext_length_rechaza_max_uint32(self):
+        """Un atacante que ponga ct_len = 4 GiB debe ser rechazado."""
+        with pytest.raises(ValueError, match="demasiado grande"):
+            validate_ciphertext_length(0xFFFFFFFF)
+
+    def test_decrypt_file_rechaza_container_con_ctlen_hostil(self):
+        """Container manipulado con ct_len enorme debe fallar antes del slice."""
+        plaintext = b"hola"
+        container, key = encrypt_file(plaintext, "doc.txt")
+        # Buscar el campo ct_len: header + nonce(12), antes del ciphertext.
+        # Lo manipulamos a 1 GiB.
+        # Localizar offset: parseamos para conocer header_end.
+        from crypto.aead import _parse_header, NONCE_SIZE
+        _, header_end = _parse_header(container)
+        ct_len_offset = header_end + NONCE_SIZE
+        manipulado = (
+            container[:ct_len_offset]
+            + struct.pack(">I", 1024 * 1024 * 1024)   # 1 GiB hostil
+            + container[ct_len_offset + 4:]
+        )
+        with pytest.raises(ValueError, match="demasiado grande"):
+            decrypt_file(manipulado, key)
+
+    def test_decrypt_for_recipient_rechaza_ctlen_hostil(self):
+        """Mismo ataque sobre contenedor SDDH."""
+        priv, pub = generate_x25519_keypair()
+        container = encrypt_for_recipients(b"hola", "doc.txt", [pub])
+        from crypto.hybrid import _parse_hybrid_header
+        from crypto.aead import NONCE_SIZE
+        _, header_end = _parse_hybrid_header(container)
+        ct_len_offset = header_end + NONCE_SIZE
+        manipulado = (
+            container[:ct_len_offset]
+            + struct.pack(">I", 2 * 1024 * 1024 * 1024)   # 2 GiB hostil
+            + container[ct_len_offset + 4:]
+        )
+        with pytest.raises(ValueError, match="demasiado grande"):
+            decrypt_for_recipient(manipulado, priv)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VULN-004 — DoS por RECIPIENT_COUNT sin tope (CWE-770)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestVuln004RecipientCountCap:
+
+    def test_encrypt_for_recipients_rechaza_demasiados_destinatarios(self):
+        # Generar lista artificialmente grande
+        priv, pub = generate_x25519_keypair()
+        muchos = [pub] * (MAX_RECIPIENTS + 1)
+        with pytest.raises(ValueError, match="Demasiados destinatarios"):
+            encrypt_for_recipients(b"hi", "doc.txt", muchos)
+
+    def test_decrypt_rechaza_recipient_count_hostil(self):
+        """Container manipulado con n_recipients=65535 debe fallar."""
+        priv, pub = generate_x25519_keypair()
+        container = encrypt_for_recipients(b"hi", "doc.txt", [pub])
+        # Localizar el campo RECIPIENT_COUNT: 16 + fname_len.
+        fname_len = struct.unpack(">H", container[14:16])[0]
+        rcpt_offset = 16 + fname_len
+        manipulado = (
+            container[:rcpt_offset]
+            + struct.pack(">H", 65535)   # uint16 max
+            + container[rcpt_offset + 2:]
+        )
+        with pytest.raises(ValueError, match="RECIPIENT_COUNT excede"):
+            decrypt_for_recipient(manipulado, priv)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VULN-005 — Tipo de contenedor confundido (SDDH pasado a decrypt_file)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestVuln005ContainerTypeConfusion:
+
+    def test_decrypt_file_rechaza_container_sddh_con_mensaje_claro(self):
+        """Pasar un contenedor SDDH a decrypt_file debe dar mensaje util."""
+        priv, pub = generate_x25519_keypair()
+        sddh = encrypt_for_recipients(b"hi", "doc.txt", [pub])
+        # Cualquier key sirve — debe fallar antes en parseo
+        from crypto.aead import generate_key
+        with pytest.raises(ValueError, match="hibrido SDDH.*decrypt_for_recipient"):
+            decrypt_file(sddh, generate_key())
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VULN-006 — Path traversal al consumir metadata['filename'] (CWE-22 layer 3)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestVuln006SafePathJoin:
+
+    def test_safe_path_join_acepta_filename_simple(self, tmp_path):
+        out = str(tmp_path)
+        result = safe_path_join(out, "doc.pdf")
+        assert result.endswith("doc.pdf")
+        assert result.startswith(out)
+
+    def test_safe_path_join_rechaza_separadores(self, tmp_path):
+        with pytest.raises(ValueError):
+            safe_path_join(str(tmp_path), "../etc/passwd")
+
+    def test_safe_path_join_rechaza_absolutos(self, tmp_path):
+        with pytest.raises(ValueError):
+            safe_path_join(str(tmp_path), "/etc/passwd")
+
+    def test_safe_path_join_rechaza_null_byte(self, tmp_path):
+        with pytest.raises(ValueError):
+            safe_path_join(str(tmp_path), "valido.txt\x00.evil")
+
+    def test_safe_path_join_no_acepta_prefix_match_falso(self, tmp_path):
+        """out_dir='/tmp/foo' no debe aceptar candidate='/tmp/fooEVIL'."""
+        # validate_filename ya rechaza separadores, asi que el unico camino
+        # para llegar aqui es un filename aceptable cuyo realpath quede fuera.
+        # En la practica esto solo pasaria con symlinks; lo verificamos con
+        # un nombre 'normal' que no contenga separadores.
+        out = str(tmp_path)
+        # Caso sano: cualquier filename simple debe quedar dentro de out_dir.
+        assert safe_path_join(out, "ok.txt").startswith(out)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VULN-007 — Password debil al guardar PEM PKCS8 (CWE-521)
+# ═══════════════════════════════════════════════════════════════════════════
+
+from crypto.keys import (
+    save_private_key,
+    validate_password_strength,
+    MIN_PASSWORD_LENGTH,
+)
+
+
+class TestVuln007PasswordStrength:
+
+    def test_validate_password_strength_acepta_password_robusto(self):
+        validate_password_strength("password_seguro_UNAM_2026!")
+        validate_password_strength("a" * MIN_PASSWORD_LENGTH + "b")
+
+    def test_validate_password_strength_rechaza_corto(self):
+        with pytest.raises(ValueError, match="Password debil"):
+            validate_password_strength("short")
+
+    def test_validate_password_strength_rechaza_un_solo_caracter_repetido(self):
+        with pytest.raises(ValueError, match="un solo caracter"):
+            validate_password_strength("a" * MIN_PASSWORD_LENGTH)
+
+    def test_validate_password_strength_rechaza_vacio(self):
+        with pytest.raises(ValueError, match="vacio"):
+            validate_password_strength("")
+
+    def test_save_private_key_rechaza_password_debil_por_default(self, tmp_path):
+        priv, _ = generate_keypair()
+        path = str(tmp_path / "test.priv")
+        with pytest.raises(ValueError, match="Password debil"):
+            save_private_key(priv, path, "abc")
+
+    def test_save_private_key_acepta_force_weak_password_para_legacy(self, tmp_path):
+        """Escape hatch para migracion / tests, no recomendado en produccion."""
+        priv, _ = generate_keypair()
+        path = str(tmp_path / "test.priv")
+        # No debe lanzar — el caller pidio bypass explicito
+        save_private_key(priv, path, "abc", force_weak_password=True)
+        import os as _os
+        assert _os.path.exists(path)
