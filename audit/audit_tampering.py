@@ -10,9 +10,9 @@ y muestra TODOS los procesos involucrados:
   - Excepcion lanzada con traceback completo
   - Interpretacion del resultado
 
-Uso:
-    python3 audit_tampering.py             # corre todos los tests
-    python3 audit_tampering.py --test 1    # corre solo el test N (1..5)
+Uso (desde la raiz del repo, para que PYTHONPATH resuelva 'crypto.*'):
+    PYTHONPATH=. python3 audit/audit_tampering.py             # corre todos
+    PYTHONPATH=. python3 audit/audit_tampering.py --test 1    # solo test N (1..5)
 """
 
 import hashlib

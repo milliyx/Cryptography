@@ -52,10 +52,8 @@ Dependencias: cryptography
 import hashlib
 import os
 import struct
-import time
 from typing import List, Optional, Tuple
 
-from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
@@ -67,8 +65,9 @@ from crypto.aead import (
     TAG_SIZE,
     KEY_SIZE,
     DEFAULT_MAX_AGE,
-    _validate_filename,
-    _validate_timestamp,
+    validate_filename,
+    validate_timestamp,
+    _build_header_prefix,
 )
 
 MAGIC_HYBRID    = b"SDDH"
@@ -211,21 +210,8 @@ def _build_hybrid_header(
       MAGIC(4) + VERSION(1) + ALGO(1) + TIMESTAMP(8) +
       FNAME_LEN(2) + FNAME + RECIPIENT_COUNT(2) + [ENTRY x N]
     """
-    _validate_filename(filename)
-    if timestamp is None:
-        timestamp = int(time.time())
-    fname_bytes = filename.encode("utf-8")
-    if len(fname_bytes) > 0xFFFF:
-        raise ValueError("Nombre de archivo demasiado largo")
-    return (
-        MAGIC_HYBRID
-        + bytes([VERSION_HYBRID, int(algo)])
-        + struct.pack(">Q", timestamp)
-        + struct.pack(">H", len(fname_bytes))
-        + fname_bytes
-        + struct.pack(">H", n_recipients)
-        + recipients_data
-    )
+    prefix = _build_header_prefix(MAGIC_HYBRID, VERSION_HYBRID, algo, filename, timestamp)
+    return prefix + struct.pack(">H", n_recipients) + recipients_data
 
 
 def _parse_hybrid_header(data: bytes) -> Tuple[dict, int]:
@@ -252,7 +238,7 @@ def _parse_hybrid_header(data: bytes) -> Tuple[dict, int]:
         raise ValueError("Cabecera truncada: falta RECIPIENT_COUNT")
     filename     = data[16:pos].decode("utf-8")
     # Defense-in-depth: rechazar filenames inseguros (CWE-22).
-    _validate_filename(filename)
+    validate_filename(filename)
     n_recipients = struct.unpack(">H", data[pos : pos + 2])[0]
     pos += 2
 
@@ -361,7 +347,7 @@ def decrypt_for_recipient(
         InvalidTag  — clave incorrecta o contenedor manipulado
     """
     metadata, header_end = _parse_hybrid_header(container)
-    _validate_timestamp(metadata["timestamp"], max_age_seconds)
+    validate_timestamp(metadata["timestamp"], max_age_seconds)
     header = container[:header_end]
     algo   = metadata["algo"]
 

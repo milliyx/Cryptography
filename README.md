@@ -57,7 +57,7 @@ Proyecto/
 
 ## Diagrama de arquitectura
 
-![arquitectura](image.png)
+![arquitectura](docs/image.png)
 
 - Solo la *Secure Vault Application* y el *Encrypted Key Store* son confiables.
 - Todo almacenamiento, red y contenedores cifrados se consideran no confiables.

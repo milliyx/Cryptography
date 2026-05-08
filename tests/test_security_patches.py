@@ -19,8 +19,6 @@ from crypto.aead import (
     decrypt_file,
     DEFAULT_MAX_AGE,
     MAX_FUTURE_SKEW,
-    _validate_filename,
-    _validate_timestamp,
 )
 from crypto.hybrid import (
     encrypt_for_recipients,

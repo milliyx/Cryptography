@@ -58,7 +58,7 @@ DEFAULT_MAX_AGE = 7 * 24 * 60 * 60   # 7 dias por defecto
 MAX_FUTURE_SKEW = 5 * 60             # 5 minutos de tolerancia hacia el futuro
 
 
-def _validate_timestamp(timestamp: int, max_age_seconds: Optional[int]) -> None:
+def validate_timestamp(timestamp: int, max_age_seconds: Optional[int]) -> None:
     """
     Valida freshness del timestamp (CWE-294 — Replay Attack).
 
@@ -85,7 +85,7 @@ def _validate_timestamp(timestamp: int, max_age_seconds: Optional[int]) -> None:
         )
 
 
-def _validate_filename(filename: str) -> None:
+def validate_filename(filename: str) -> None:
     """
     Valida que el filename sea seguro para uso en filesystem.
 
@@ -126,25 +126,40 @@ class Algorithm(IntEnum):
 
 # -- Construccion y parseo de cabecera ----------------------------------------
 
-def _build_header(
-    filename: str,
+def _build_header_prefix(
+    magic: bytes,
+    version: int,
     algo: Algorithm,
-    timestamp: Optional[int] = None,
+    filename: str,
+    timestamp: Optional[int],
 ) -> bytes:
-    """Construye la cabecera del contenedor (= AAD del cifrado AEAD)."""
-    _validate_filename(filename)
+    """
+    Prefijo comun de cabecera SDDV/SDDH.
+    Layout: MAGIC(4) + VERSION(1) + ALGO(1) + TS(8) + FNAME_LEN(2) + FNAME.
+    Valida filename, asigna timestamp si es None, y revisa longitud de filename.
+    """
+    validate_filename(filename)
     if timestamp is None:
         timestamp = int(time.time())
     fname_bytes = filename.encode("utf-8")
     if len(fname_bytes) > 0xFFFF:
         raise ValueError("Nombre de archivo demasiado largo")
     return (
-        MAGIC
-        + bytes([VERSION, int(algo)])
+        magic
+        + bytes([version, int(algo)])
         + struct.pack(">Q", timestamp)
         + struct.pack(">H", len(fname_bytes))
         + fname_bytes
     )
+
+
+def _build_header(
+    filename: str,
+    algo: Algorithm,
+    timestamp: Optional[int] = None,
+) -> bytes:
+    """Construye la cabecera del contenedor (= AAD del cifrado AEAD)."""
+    return _build_header_prefix(MAGIC, VERSION, algo, filename, timestamp)
 
 
 def _parse_header(data: bytes) -> Tuple[dict, int]:
@@ -169,7 +184,7 @@ def _parse_header(data: bytes) -> Tuple[dict, int]:
     filename = data[16:header_end].decode("utf-8")
     # Defense-in-depth: rechazar filenames inseguros aun si el contenedor fue
     # cifrado con una version vulnerable de encrypt_file (CWE-22).
-    _validate_filename(filename)
+    validate_filename(filename)
     metadata = {
         "version":   version,
         "algo":      algo,
@@ -258,7 +273,7 @@ def decrypt_file(
                        de la ventana de freshness, o bytes sobrantes
     """
     metadata, header_end = _parse_header(container)
-    _validate_timestamp(metadata["timestamp"], max_age_seconds)
+    validate_timestamp(metadata["timestamp"], max_age_seconds)
     header = container[:header_end]
     algo   = metadata["algo"]
     pos    = header_end
