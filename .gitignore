@@ -7,3 +7,15 @@ pytest-cache-files-*/
 *.egg-info/
 dist/
 build/
+
+# D6 -- Key Management: nunca commitear material clave real
+# El keystore guarda llaves privadas cifradas; aun asi se ignora por defecto
+# para evitar publicar identidades reales del equipo.
+keystore/
+backups/
+keys/
+*.sddv_priv
+*.sddv_pub
+*.sddv_backup
+*.pem
+*.key
