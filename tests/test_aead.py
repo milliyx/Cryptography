@@ -94,9 +94,10 @@ def test_roundtrip_nombre_con_caracteres_unicode():
 
 def test_roundtrip_preserva_timestamp():
     """El timestamp que se pasa al cifrar debe recuperarse en los metadatos."""
-    ts = 1_700_000_000  # timestamp fijo para el test
+    ts = 1_700_000_000  # timestamp fijo para el test (anterior a la ventana de freshness)
     container, key = encrypt_file(SAMPLE_PLAINTEXT, SAMPLE_FILENAME, timestamp=ts)
-    _, metadata = decrypt_file(container, key)
+    # max_age_seconds=None deshabilita la validacion de freshness para este test
+    _, metadata = decrypt_file(container, key, max_age_seconds=None)
     assert metadata["timestamp"] == ts
 
 
@@ -240,10 +241,16 @@ def test_filename_en_cabecera_modificado_falla():
 
 
 def test_magic_bytes_invalidos_falla():
-    """Un contenedor con magic bytes incorrectos debe rechazarse antes del AEAD."""
+    """Un contenedor con magic bytes incorrectos debe rechazarse antes del AEAD.
+
+    Acepta dos mensajes porque ramas distintas del proyecto los han usado:
+      - "Magic bytes invalidos - es esto un contenedor SDDV?"
+      - "Invalid container"  (validacion temprana, commit 79c12d3)
+    Ambos son fail-closed sobre el mismo escenario.
+    """
     container, key = encrypt_default()
     tampered = b"FAKE" + container[4:]
-    with pytest.raises(ValueError, match="Magic bytes"):
+    with pytest.raises(ValueError, match="(Magic bytes|Invalid container)"):
         decrypt_file(tampered, key)
 
 

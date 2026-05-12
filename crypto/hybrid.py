@@ -52,16 +52,24 @@ Dependencias: cryptography
 import hashlib
 import os
 import struct
-import time
 from typing import List, Optional, Tuple
 
-from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from crypto.aead import Algorithm, NONCE_SIZE, TAG_SIZE, KEY_SIZE
+from crypto.aead import (
+    Algorithm,
+    NONCE_SIZE,
+    TAG_SIZE,
+    KEY_SIZE,
+    DEFAULT_MAX_AGE,
+    validate_filename,
+    validate_timestamp,
+    validate_ciphertext_length,
+    _build_header_prefix,
+)
 
 MAGIC_HYBRID    = b"SDDH"
 VERSION_HYBRID  = 1
@@ -74,6 +82,12 @@ WRAPPED_KEY_SIZE = KEY_SIZE + TAG_SIZE   # 32 ct + 16 tag = 48
 
 RECIPIENT_ENTRY_SIZE = FINGERPRINT_SIZE + EPH_PUB_SIZE + WRAP_NONCE_SIZE + WRAPPED_KEY_SIZE
 # = 32 + 32 + 12 + 48 = 124 bytes por destinatario
+
+# Tope superior de destinatarios por contenedor (CWE-770 — Resource Exhaustion).
+# El campo es uint16 (hasta 65535), pero un contenedor con tantas entradas
+# inflaria la cabecera a ~8 MiB. 1024 cubre cualquier caso realista (broadcast
+# a un grupo) y rechaza valores hostiles antes de iterar.
+MAX_RECIPIENTS = 1024
 
 
 # ── Gestion de claves X25519 ─────────────────────────────────────────────────
@@ -203,20 +217,8 @@ def _build_hybrid_header(
       MAGIC(4) + VERSION(1) + ALGO(1) + TIMESTAMP(8) +
       FNAME_LEN(2) + FNAME + RECIPIENT_COUNT(2) + [ENTRY x N]
     """
-    if timestamp is None:
-        timestamp = int(time.time())
-    fname_bytes = filename.encode("utf-8")
-    if len(fname_bytes) > 0xFFFF:
-        raise ValueError("Nombre de archivo demasiado largo")
-    return (
-        MAGIC_HYBRID
-        + bytes([VERSION_HYBRID, int(algo)])
-        + struct.pack(">Q", timestamp)
-        + struct.pack(">H", len(fname_bytes))
-        + fname_bytes
-        + struct.pack(">H", n_recipients)
-        + recipients_data
-    )
+    prefix = _build_header_prefix(MAGIC_HYBRID, VERSION_HYBRID, algo, filename, timestamp)
+    return prefix + struct.pack(">H", n_recipients) + recipients_data
 
 
 def _parse_hybrid_header(data: bytes) -> Tuple[dict, int]:
@@ -242,8 +244,16 @@ def _parse_hybrid_header(data: bytes) -> Tuple[dict, int]:
     if len(data) < pos + 2:
         raise ValueError("Cabecera truncada: falta RECIPIENT_COUNT")
     filename     = data[16:pos].decode("utf-8")
+    # Defense-in-depth: rechazar filenames inseguros (CWE-22).
+    validate_filename(filename)
     n_recipients = struct.unpack(">H", data[pos : pos + 2])[0]
     pos += 2
+    # Tope antes de iterar (CWE-770).
+    if n_recipients > MAX_RECIPIENTS:
+        raise ValueError(
+            f"RECIPIENT_COUNT excede el tope: {n_recipients} "
+            f"(maximo permitido: {MAX_RECIPIENTS})"
+        )
 
     recipients = []
     for i in range(n_recipients):
@@ -304,6 +314,11 @@ def encrypt_for_recipients(
     """
     if not recipients:
         raise ValueError("Se necesita al menos un destinatario")
+    if len(recipients) > MAX_RECIPIENTS:
+        raise ValueError(
+            f"Demasiados destinatarios: {len(recipients)} "
+            f"(maximo permitido: {MAX_RECIPIENTS})"
+        )
 
     # 1. Generar file_key aleatorio (DEM key)
     file_key = os.urandom(KEY_SIZE)
@@ -331,21 +346,26 @@ def encrypt_for_recipients(
 def decrypt_for_recipient(
     container: bytes,
     private_key: X25519PrivateKey,
+    max_age_seconds: Optional[int] = DEFAULT_MAX_AGE,
 ) -> Tuple[bytes, dict]:
     """
     Descifra un contenedor hibrido usando la clave privada X25519 del destinatario.
 
     Parametros:
-        container   : bytes del contenedor SDDH
-        private_key : clave privada X25519 del destinatario
+        container       : bytes del contenedor SDDH
+        private_key     : clave privada X25519 del destinatario
+        max_age_seconds : ventana de freshness en segundos. Default 7 dias.
+                          Pasar None deshabilita validacion (CWE-294).
 
     Retorna: (plaintext, metadata)
 
     Lanza:
-        ValueError  — si el contenedor esta malformado o el destinatario no esta en la lista
-        InvalidTag  — si la clave es incorrecta o alguna parte del contenedor fue manipulada
+        ValueError  — contenedor malformado, filename inseguro, timestamp
+                      fuera de ventana, o destinatario no autorizado
+        InvalidTag  — clave incorrecta o contenedor manipulado
     """
     metadata, header_end = _parse_hybrid_header(container)
+    validate_timestamp(metadata["timestamp"], max_age_seconds)
     header = container[:header_end]
     algo   = metadata["algo"]
 
@@ -373,6 +393,8 @@ def decrypt_for_recipient(
         raise ValueError("Contenedor truncado: faltan nonce o ct_len")
     nonce  = container[pos : pos + NONCE_SIZE]; pos += NONCE_SIZE
     ct_len = struct.unpack(">I", container[pos : pos + 4])[0]; pos += 4
+    # Tope superior antes del slice (CWE-770).
+    validate_ciphertext_length(ct_len)
     if len(container) < pos + ct_len + TAG_SIZE:
         raise ValueError("Contenedor truncado: faltan ciphertext o tag")
     ciphertext = container[pos : pos + ct_len]; pos += ct_len
