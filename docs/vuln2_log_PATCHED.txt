@@ -1,0 +1,63 @@
+
+########################################################################
+#          REPRODUCCION VULN-002: Replay Attack (no freshness)         #
+#                       CWE-294 — Severidad MEDIUM                     #
+########################################################################
+
+========================================================================
+  CASO 1 — Replay sobre SDDV (crypto/aead.py)
+========================================================================
+
+  Alice cifra un mensaje con timestamp del 2020-01-01:
+    timestamp embebido: 2020-01-01 00:00:00 UTC
+    contenido: b'Transferir $1000 de Alice a Bob'
+
+  Tiempo presente: 2026-05-06 02:51:53 UTC
+  Atacante reentrega el mismo contenedor (sin modificarlo).
+  Bob descifra:
+
+  [PARCHE - REPLAY BLOQUEADO]
+  decrypt_file rechazo el contenedor antiguo:
+  ValueError: timestamp demasiado antiguo: 200199113 segundos (max permitido: 604800)
+
+========================================================================
+  CASO 2 — Replay sobre contenedor firmado D5 (escenario realista)
+========================================================================
+
+  ESCENARIO:
+  - Alice firma el mensaje el 2024-06-15 10:30:00 UTC
+  - Atacante captura el contenedor pasando por la red
+  - Tiempo despues, atacante reentrega EL MISMO contenedor a Bob
+
+  Contenedor capturado por el atacante: 334 bytes
+  La firma Ed25519 cubre el timestamp como parte del AAD.
+  La firma es deterministica — el atacante NO puede modificar el timestamp
+  para hacer parecer reciente al mensaje. Pero NO necesita hacerlo.
+
+  Bob recibe el contenedor en 2026-05-06 02:51:53 UTC:
+  >>> secure_verify_and_decrypt(signed_container, alice_sign_pub, bob_priv)
+
+  [PARCHE - REPLAY BLOQUEADO]
+  secure_verify_and_decrypt rechazo el contenedor antiguo:
+  ValueError: timestamp demasiado antiguo: 59588513 segundos (max permitido: 604800)
+
+========================================================================
+  CASO 3 — Aceptacion de timestamps imposibles (futuro)
+========================================================================
+
+  Atacante (o cliente con reloj mal configurado) cifra un mensaje
+  con timestamp del FUTURO: 2099-12-31 00:00:00 UTC
+
+  [PARCHE - TIMESTAMP FUTURO BLOQUEADO]
+  decrypt_file rechazo el contenedor con timestamp del futuro:
+  ValueError: timestamp en el futuro: 2324322487 segundos (max skew permitido: 300)
+
+========================================================================
+  CONCLUSION:
+  El sistema almacena timestamps en el AAD pero nunca los valida
+  contra el tiempo actual. Esto permite:
+    1. Replay indefinido de mensajes capturados
+    2. Aceptacion de timestamps en el futuro (no hay limite superior)
+    3. Aceptacion de timestamps muy antiguos (no hay limite inferior)
+========================================================================
+

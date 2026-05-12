@@ -47,6 +47,39 @@ PUBLIC_KEY_SUFFIX  = ".sddv_pub"
 KEY_FILENAME_PRIV  = "private_key"
 KEY_FILENAME_PUB   = "public_key"
 
+# Requisitos minimos de password para proteger PEM PKCS8 cifrado
+# (CWE-521 — Weak Password Requirements). NIST SP 800-63B sugiere >=8;
+# 12 es un compromiso entre usabilidad y resistencia a brute-force offline.
+MIN_PASSWORD_LENGTH = 12
+
+
+def validate_password_strength(password: str) -> None:
+    """
+    Valida que el password cumpla los requisitos minimos de fortaleza
+    (CWE-521). El PEM PKCS8 cifrado se puede atacar offline una vez
+    obtenido el archivo, asi que un password debil = compromiso de la
+    llave privada.
+
+    Reglas:
+      - no vacio
+      - >= MIN_PASSWORD_LENGTH caracteres
+      - no es una sola repeticion del mismo caracter (ej "aaaaaaaaaaaa")
+
+    Lanza ValueError si el password no cumple.
+    """
+    if not password:
+        raise ValueError("El password no puede estar vacio")
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(
+            f"Password debil: longitud {len(password)} < minimo "
+            f"{MIN_PASSWORD_LENGTH}. Se recomienda passphrase de "
+            f"4+ palabras o >= 12 caracteres mezclados."
+        )
+    if len(set(password)) == 1:
+        raise ValueError(
+            "Password debil: un solo caracter repetido (ej 'aaaaaaaaaaaa')"
+        )
+
 
 # ── generacion de llaves ──────────────────────────────────────────────────────
 
@@ -64,7 +97,12 @@ def generate_keypair():
 
 # ── guardar en disco ──────────────────────────────────────────────────────────
 
-def save_private_key(private_key, path: str, password: str) -> None:
+def save_private_key(
+    private_key,
+    path: str,
+    password: str,
+    force_weak_password: bool = False,
+) -> None:
     """
     Guarda la llave privada cifrada en formato PEM (PKCS8 + AES-256-CBC).
 
@@ -73,15 +111,23 @@ def save_private_key(private_key, path: str, password: str) -> None:
     OpenSSL. La llave NUNCA se almacena en texto plano.
 
     Parametros:
-        private_key: objeto Ed25519PrivateKey
-        path:        ruta del archivo de salida
-        password:    contrasena del usuario
+        private_key:         objeto Ed25519PrivateKey
+        path:                ruta del archivo de salida
+        password:            contrasena del usuario (>= 12 caracteres por
+                             defecto)
+        force_weak_password: bypass de la validacion de fortaleza. Solo para
+                             pruebas o migracion de llaves antiguas; no usar
+                             en produccion (CWE-521).
 
     Lanza:
-        ValueError -- si el password esta vacio
+        ValueError -- si el password esta vacio o no cumple
+                      MIN_PASSWORD_LENGTH (a menos que force_weak_password=True)
     """
-    if not password:
-        raise ValueError("El password no puede estar vacio")
+    if force_weak_password:
+        if not password:
+            raise ValueError("El password no puede estar vacio")
+    else:
+        validate_password_strength(password)
 
     pem_bytes = private_key.private_bytes(
         encoding=Encoding.PEM,
@@ -167,7 +213,11 @@ def get_fingerprint_from_file(path: str) -> str:
 
 # ── flujo completo (helper) ───────────────────────────────────────────────────
 
-def generate_and_save_keypair(base_path: str, password: str) -> dict:
+def generate_and_save_keypair(
+    base_path: str,
+    password: str,
+    force_weak_password: bool = False,
+) -> dict:
     """
     Genera un par de llaves, las guarda en disco y retorna rutas y fingerprint.
 
@@ -181,7 +231,7 @@ def generate_and_save_keypair(base_path: str, password: str) -> dict:
     private_key, public_key = generate_keypair()
     priv_path = base_path + PRIVATE_KEY_SUFFIX
     pub_path  = base_path + PUBLIC_KEY_SUFFIX
-    save_private_key(private_key, priv_path, password)
+    save_private_key(private_key, priv_path, password, force_weak_password=force_weak_password)
     save_public_key(public_key,  pub_path)
     return {
         "private_key_path": priv_path,

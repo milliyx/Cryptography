@@ -1,0 +1,70 @@
+########################################################################
+#          REPRODUCCION VULN-002: Replay Attack (no freshness)         #
+#                       CWE-294 — Severidad MEDIUM                     #
+########################################################################
+
+========================================================================
+  CASO 1 — Replay sobre SDDV (crypto/aead.py)
+========================================================================
+
+  Alice cifra un mensaje con timestamp del 2020-01-01:
+    timestamp embebido: 2020-01-01 00:00:00 UTC
+    contenido: b'Transferir $1000 de Alice a Bob'
+
+  Tiempo presente: 2026-05-05 20:54:54 UTC
+  Atacante reentrega el mismo contenedor (sin modificarlo).
+  Bob descifra:
+    timestamp leido: 2020-01-01 00:00:00 UTC
+    edad del mensaje: 2317 dias
+    contenido recuperado: b'Transferir $1000 de Alice a Bob'
+
+  [!!! VULNERABLE - VULNERABILIDAD CONFIRMADA !!!]
+  El sistema acepto un mensaje cuyo timestamp es de hace mas de
+  2317 dias sin protestar.
+
+========================================================================
+  CASO 2 — Replay sobre contenedor firmado D5 (escenario realista)
+========================================================================
+
+  ESCENARIO:
+  - Alice firma el mensaje el 2024-06-15 10:30:00 UTC
+  - Atacante captura el contenedor pasando por la red
+  - Tiempo despues, atacante reentrega EL MISMO contenedor a Bob
+
+  Contenedor capturado por el atacante: 334 bytes
+  La firma Ed25519 cubre el timestamp como parte del AAD.
+  La firma es deterministica — el atacante NO puede modificar el timestamp
+  para hacer parecer reciente al mensaje. Pero NO necesita hacerlo.
+
+  Bob recibe el contenedor en 2026-05-05 20:54:54 UTC:
+  >>> secure_verify_and_decrypt(signed_container, alice_sign_pub, bob_priv)
+
+  RESULTADO:
+    [OK firma]   sistema acepto la firma como valida
+    [OK descifre] sistema devolvio el plaintext: b'Autorizo la transferencia de fondos. - Alice'
+    edad real del mensaje: 689 dias (1.9 anios)
+
+  [!!! VULNERABLE - VULNERABILIDAD CONFIRMADA !!!]
+  Bob acepto como autentico un mensaje firmado hace 689 dias.
+
+========================================================================
+  CASO 3 — Aceptacion de timestamps imposibles (futuro)
+========================================================================
+
+  Atacante (o cliente con reloj mal configurado) cifra un mensaje
+  con timestamp del FUTURO: 2099-12-31 00:00:00 UTC
+
+  Bob descifra y obtiene metadata['timestamp'] = 2099-12-31 00:00:00 UTC
+  El sistema NO rechaza este timestamp imposible.
+
+  [!!! VULNERABLE - VULNERABILIDAD COMPLEMENTARIA !!!]
+  El sistema deberia rechazar timestamps significativamente en el futuro.
+
+========================================================================
+  CONCLUSION:
+  El sistema almacena timestamps en el AAD pero nunca los valida
+  contra el tiempo actual. Esto permite:
+    1. Replay indefinido de mensajes capturados
+    2. Aceptacion de timestamps en el futuro (no hay limite superior)
+    3. Aceptacion de timestamps muy antiguos (no hay limite inferior)
+========================================================================

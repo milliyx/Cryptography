@@ -110,7 +110,8 @@ def test_roundtrip_preserva_timestamp():
     ts = 1_700_000_000
     priv, pub = make_keypair()
     container = encrypt_for_recipients(SAMPLE_PLAINTEXT, SAMPLE_FILENAME, [pub], timestamp=ts)
-    _, meta = decrypt_for_recipient(container, priv)
+    # max_age_seconds=None deshabilita la validacion de freshness para este test
+    _, meta = decrypt_for_recipient(container, priv, max_age_seconds=None)
     assert meta["timestamp"] == ts
 
 

@@ -1,0 +1,5 @@
+# Dependencias del SDDV
+# Probado con Python 3.10. Compatible con Python >= 3.8.
+
+cryptography>=41.0.0
+pytest>=7.0.0
