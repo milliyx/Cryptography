@@ -26,6 +26,7 @@ Este sistema aborda los tres aspectos mediante mecanismos criptográficos formal
 - **Compartición segura** — cifrado híbrido multi-destinatario (X25519 ECDH + KEM+DEM) — *D3*
 - **Autenticación de origen** — firmas Ed25519 sobre contenedores híbridos completos, patrón verify-first — *D5*
 - **Detección de re-empaquetado** — binding del fingerprint del firmante a los datos firmados — *D5*
+- **Gestión segura de llaves privadas** — keystore con scrypt + AES-256-GCM, ciclo de vida completo (init/rotate/revoke/backup) — *D6*
 
 ---
 
@@ -34,22 +35,39 @@ Este sistema aborda los tres aspectos mediante mecanismos criptográficos formal
 ```
 Proyecto/
 ├── crypto/
-│   ├── aead.py          # D2 — Cifrado AEAD (AES-256-GCM, ChaCha20-Poly1305)
-│   ├── keys.py          # Gestión de llaves Ed25519 (PKCS8 PEM)
-│   ├── signatures.py    # Firmas Ed25519 + wrappers para SDDH (D5)
-│   ├── hybrid.py        # D3 — Cifrado híbrido multi-destinatario (X25519)
-│   └── secure_send.py   # D5 — API combinada Encrypt+Sign / Verify+Decrypt
+│   ├── aead.py              # D2 — Cifrado AEAD (AES-256-GCM, ChaCha20-Poly1305)
+│   ├── keys.py              # Gestión de llaves Ed25519 (PKCS8 PEM) — API legacy
+│   ├── signatures.py        # Firmas Ed25519 + wrappers para SDDH (D5)
+│   ├── hybrid.py            # D3 — Cifrado híbrido multi-destinatario (X25519)
+│   ├── secure_send.py       # D5 — API combinada Encrypt+Sign / Verify+Decrypt
+│   ├── kdf.py               # D6 — KDF scrypt (memory-hard) con parámetros OWASP
+│   ├── keystore_format.py   # D6 — Esquema JSON v1 + envelope AES-256-GCM
+│   ├── keystore.py          # D6 — KeyStore API (init/unlock/rotate/revoke/...)
+│   ├── keystore_backup.py   # D6 — export_backup / import_backup
+│   └── __main__.py          # D6 — CLI (python -m crypto <subcomando>)
 ├── tests/
-│   ├── test_aead.py             # 27 tests — módulo AEAD
-│   ├── test_keys.py             # 19 tests — gestión de llaves
-│   ├── test_signatures.py       # 17 tests — firmas digitales (SDDV)
-│   ├── test_hybrid.py           # 31 tests — cifrado híbrido
-│   └── test_d5_hybrid_signed.py # 28 tests — D5 firma sobre SDDH
+│   ├── test_aead.py                 # 27 tests — módulo AEAD
+│   ├── test_keys.py                 # 19 tests — gestión de llaves legacy
+│   ├── test_signatures.py           # 17 tests — firmas digitales (SDDV)
+│   ├── test_hybrid.py               # 31 tests — cifrado híbrido
+│   ├── test_d5_hybrid_signed.py     # 28 tests — D5 firma sobre SDDH
+│   ├── test_security_patches.py     # 45 tests — parches VULN-001..007
+│   ├── test_kdf.py                  # 24 tests — D6 KDF (scrypt)
+│   ├── test_keystore_format.py      # 33 tests — D6 envelope + esquema v1
+│   ├── test_keystore.py             # 37 tests — D6 API básica
+│   ├── test_keystore_lifecycle.py   # 21 tests — D6 rotate/revoke/change-pwd/expir
+│   └── test_keystore_security.py    # 20 tests — D6 rúbrica (stolen, modified, etc.)
 ├── docs/
-│   ├── architecture.svg         # Diagrama de arquitectura
-│   ├── D2_Encryption_Design.md  # Documentación D2
-│   └── D5_Signature_Design.md   # Documentación D5
-├── demo.py              # Script de demo en vivo (D2 + D3 + D5)
+│   ├── architecture.svg             # Diagrama de arquitectura
+│   ├── D1_Threat_Model.md           # D1 — Modelo de amenazas consolidado
+│   ├── D2_Encryption_Design.md      # D2 — Cifrado AEAD
+│   ├── D5_Signature_Design.md       # D5 — Firmas Ed25519
+│   ├── D6_Key_Management.md         # D6 — Diseño del keystore y ciclo de vida
+│   ├── security_audit_report.md     # D4 — Auditoría de manipulación
+│   └── vulnerability_report.md      # Reporte de VULN-001..007
+├── demo.py                  # Demo D2 + D3 + D5
+├── demo_d6.py               # Demo del ciclo de vida D6 (keystore)
+├── requirements.txt
 └── README.md
 ```
 
@@ -72,14 +90,20 @@ Proyecto/
 | **RS-1** | Confidencialidad del contenido — un atacante con el contenedor cifrado no debe poder recuperar el plaintext sin la clave | AES-256-GCM / ChaCha20-Poly1305, clave de 256 bits, nonce CSPRNG por mensaje |
 | **RS-2** | Integridad del contenido — cualquier modificación al contenedor debe detectarse | Tag AEAD de 128 bits cubre ciphertext + AAD (metadatos) |
 | **RS-3** | Autenticidad del remitente — solo el dueño de la llave privada puede generar firma válida | Firma Ed25519 (RFC 8032), EUF-CMA seguro |
-| **RS-4** | Confidencialidad de claves privadas — nunca en texto plano | PEM cifrado PKCS8 con `BestAvailableEncryption` (AES-256-CBC + KDF) |
+| **RS-4** | Confidencialidad de claves privadas — nunca en texto plano | Keystore D6: scrypt (n=2¹⁵, r=8, p=1) + AES-256-GCM por identidad; PEM PKCS8 legacy disponible |
 | **RS-5** | Protección contra manipulación — alteraciones en metadatos, llave envuelta, tag o firma deben detectarse | Cabecera completa como AAD del DEM + firma Ed25519 sobre contenedor SDDH completo |
 | **RS-6** | Unicidad de nonce — cada operación usa nonce único de 96 bits | `os.urandom(12)` por cifrado; tests verifican unicidad estadística |
-| **RS-7** | Gestión automatizada de claves | `generate_and_save_keypair()` + `encrypt_for_recipients()` envuelven la complejidad |
+| **RS-7** | Gestión del ciclo de vida de llaves | D6 KeyStore: `init / unlock / change_password / rotate / revoke / backup / restore` |
 
 ---
 
 ## Modelo de amenaza
+
+> El modelo completo y consolidado vive en
+> **[`docs/D1_Threat_Model.md`](docs/D1_Threat_Model.md)**, incluida la
+> sección 6 que cubre los escenarios específicos de D6 (robo del
+> keystore, password débil, dispositivo comprometido). Esta sección es
+> un resumen.
 
 ### Activos protegidos
 
@@ -139,8 +163,8 @@ Proyecto/
 git clone git@github.com:milliyx/Cryptography.git
 cd Cryptography
 
-# Instalar dependencias
-pip install cryptography pytest
+# Instalar dependencias (cryptography>=41, pytest>=7)
+pip install -r requirements.txt
 ```
 
 ---
@@ -148,15 +172,24 @@ pip install cryptography pytest
 ## Ejecutar tests
 
 ```bash
-# Todos los tests (122 en total: 94 D2/D3 + 28 D5)
+# Toda la suite (300 tests: D2 + D3 + D5 + VULN + D6)
 pytest tests/ -v
 
-# Por módulo
+# Solo D6 (135 tests)
+pytest tests/test_kdf.py tests/test_keystore_format.py \
+       tests/test_keystore.py tests/test_keystore_lifecycle.py \
+       tests/test_keystore_security.py -v
+
+# Solo los 5 tests rúbrica D6
+pytest tests/test_keystore_security.py -v
+
+# Por módulo individual
 pytest tests/test_aead.py -v
 pytest tests/test_keys.py -v
 pytest tests/test_signatures.py -v
 pytest tests/test_hybrid.py -v
 pytest tests/test_d5_hybrid_signed.py -v
+pytest tests/test_security_patches.py -v
 ```
 
 ---
@@ -164,10 +197,14 @@ pytest tests/test_d5_hybrid_signed.py -v
 ## Demo en vivo
 
 ```bash
+# Demo D2 + D3 + D5
 python demo.py
+
+# Demo D6 (ciclo de vida del keystore)
+python demo_d6.py
 ```
 
-El script ejecuta los 5 escenarios automáticamente:
+`demo.py` ejecuta los 5 escenarios automáticamente:
 
 | # | Escenario | Resultado esperado |
 |---|-----------|-------------------|
@@ -176,6 +213,18 @@ El script ejecuta los 5 escenarios automáticamente:
 | 3 | No-destinatario intenta descifrar | ✔ `ValueError: no está autorizado` |
 | 4 | Archivo modificado → descifrado falla | ✔ `InvalidTag` en 3 variantes de ataque |
 | 5 | **D5 — Firmar + cifrar + verify-first + descifrar** | ✔ Bob/Carol descifran tras verificar; rechazo de re-firmado, metadata modificada y firma eliminada |
+
+`demo_d6.py` recorre el ciclo completo del key management:
+
+| # | Escenario | Resultado |
+|---|---|---|
+| 1 | Crear identidades para Alice y Bob | ✔ `keystore/alice.json` y `bob.json` |
+| 2 | Inspeccionar el JSON del keystore | ✔ privada cifrada, salt/n/r/p visibles |
+| 3 | Unlock con password incorrecto | ✔ `InvalidTag` (rúbrica: wrong password → denied) |
+| 4 | Alice firma+cifra documento para Bob | ✔ contenedor SDDH firmado |
+| 5 | Bob verifica y descifra desde su keystore | ✔ plaintext recuperado |
+| 6 | Rotación de las llaves de Alice | ✔ nuevo fingerprint; archivo `.rotated-<ts>.json` |
+| 7 | Backup → borrar → restore | ✔ identidad restaurada con password independiente |
 
 ---
 
@@ -282,6 +331,105 @@ plaintext, metadata = secure_verify_and_decrypt(
 
 La función combinada hace que sea **imposible saltarse la verificación**: si la firma falla, no se llega a la fase de descifrado. Es el patrón "misuse-resistant API" recomendado por NaCl/libsodium.
 
+### D6 — KeyStore (gestión de llaves privadas)
+
+El keystore D6 reemplaza el patrón "generar par + guardar PEM cifrado"
+por una capa que protege las llaves privadas con un KDF explícito
+(scrypt) y soporta el ciclo de vida completo. La API legacy de
+`crypto/keys.py` sigue disponible para compatibilidad.
+
+**CLI** — todas las contraseñas se piden con `getpass` para que no
+aparezcan en historiales de shell ni en `ps`:
+
+```bash
+# Crear identidad (genera Ed25519 + X25519; cifra con scrypt+AES-GCM)
+python -m crypto init alice
+
+# Listar identidades del keystore
+python -m crypto list
+
+# Ver fingerprints (sin necesidad de password)
+python -m crypto fingerprint alice
+
+# Cambiar password (re-cifra con nuevo salt y nonce; mismas llaves)
+python -m crypto change-password alice
+
+# Rotar llaves (genera par nuevo, archiva el viejo)
+python -m crypto rotate alice
+
+# Revocar (bloquea unlocks pero deja la pública consultable)
+python -m crypto revoke alice --reason "key compromise"
+
+# Backup con password independiente del operativo
+python -m crypto backup alice ./backups/alice.sddv_backup
+
+# Restaurar desde backup
+python -m crypto restore ./backups/alice.sddv_backup --name alice_restored
+
+# Borrar (exige password correcto como prueba de autoría)
+python -m crypto delete alice
+
+# Override del directorio
+python -m crypto --keystore ./otro_dir list
+```
+
+**API Python — flujo D5 desde el keystore (recomendado):**
+
+```python
+from crypto.keystore import KeyStore
+from crypto.secure_send import (
+    encrypt_and_sign_from_keystore,
+    verify_and_decrypt_from_keystore,
+)
+
+ks = KeyStore("keystore")
+ks.init_identity("alice", "passwordFuerte_2026!")
+ks.init_identity("bob",   "otroPasswordFuerte_2026!")
+
+# Envío
+bob_pub_x25519 = ks.get_public_keys("bob")["x25519_pub"]
+container = encrypt_and_sign_from_keystore(
+    ks, "alice", "passwordFuerte_2026!",
+    plaintext=b"Documento confidencial...",
+    filename="contrato.pdf",
+    recipients_x25519=[bob_pub_x25519],
+)
+
+# Recepción
+alice_pub_ed = ks.get_public_keys("alice")["ed25519_pub"]
+plaintext, metadata = verify_and_decrypt_from_keystore(
+    ks, "bob", "otroPasswordFuerte_2026!",
+    signed_container=container,
+    expected_signer_pub=alice_pub_ed,
+)
+```
+
+**Backup y recuperación:**
+
+```python
+from crypto.keystore_backup import export_backup, import_backup
+
+# Backup con password independiente
+export_backup(
+    ks, "alice",
+    active_password="passwordFuerte_2026!",
+    backup_password="passwordDelBackup_2026!",
+    out_path="alice.sddv_backup",
+)
+
+# Restore
+info = import_backup(
+    ks, "alice.sddv_backup",
+    backup_password="passwordDelBackup_2026!",
+    new_active_password="passwordRestaurado_2026!",
+    name="alice_restaurada",   # opcional: renombrar al restaurar
+)
+```
+
+**Documentación completa:** [`docs/D6_Key_Management.md`](docs/D6_Key_Management.md)
+incluye el formato JSON v1, los parámetros scrypt, el ciclo de vida y
+la alineación con el modelo de amenazas.
+
 ---
 
 ## Formato de contenedores
@@ -348,7 +496,11 @@ SIGNATURE(64)     Ed25519 sobre TODO lo anterior
 | Encoding firma | 64 bytes raw (RFC 8032) | Sin base64; el contenedor ya es binario |
 | KEM | X25519 ECDH + HKDF | Ephemeral keys por destinatario → forward secrecy |
 | KDF de wrapping | HKDF-SHA256 | Salt = fingerprint del destinatario, info = "SDDV-D3-wrap" |
-| Protección llave priv | PKCS8 PEM (AES-256-CBC) | Estándar compatible con OpenSSL |
+| Protección llave priv (legacy) | PKCS8 PEM (AES-256-CBC) | Estándar compatible con OpenSSL |
+| Protección llave priv (D6) | scrypt (n=2¹⁵, r=8, p=1) + AES-256-GCM | Memory-hard (resistente GPU/ASIC); AEAD autenticado |
+| Formato del keystore | JSON v1 con `encrypted_private_key`, `salt`, `kdf_parameters`, `metadata` | Estructurado, autodocumentado, fácil de migrar a v2 |
+| Backup | Re-cifrado con password independiente | Defense-in-depth: separa el secreto operativo del de respaldo |
+| Política de acceso | "No caching": cada `unlock_*` re-deriva con scrypt | Privadas viven solo en el frame que las usa; coste deliberado |
 
 ---
 
