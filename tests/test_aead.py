@@ -241,10 +241,16 @@ def test_filename_en_cabecera_modificado_falla():
 
 
 def test_magic_bytes_invalidos_falla():
-    """Un contenedor con magic bytes incorrectos debe rechazarse antes del AEAD."""
+    """Un contenedor con magic bytes incorrectos debe rechazarse antes del AEAD.
+
+    Acepta dos mensajes porque ramas distintas del proyecto los han usado:
+      - "Magic bytes invalidos - es esto un contenedor SDDV?"
+      - "Invalid container"  (validacion temprana, commit 79c12d3)
+    Ambos son fail-closed sobre el mismo escenario.
+    """
     container, key = encrypt_default()
     tampered = b"FAKE" + container[4:]
-    with pytest.raises(ValueError, match="Magic bytes"):
+    with pytest.raises(ValueError, match="(Magic bytes|Invalid container)"):
         decrypt_file(tampered, key)
 
 
