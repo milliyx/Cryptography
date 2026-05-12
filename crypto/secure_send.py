@@ -149,3 +149,60 @@ def secure_verify_and_decrypt(
     )
 
     return plaintext, metadata
+
+
+# ─────────────────────────── integracion con KeyStore (D6) ───────────────────
+#
+# Estos helpers viven en secure_send (en lugar de en keystore.py) para que
+# el modulo del keystore quede sin dependencias del modulo de firma /
+# cifrado. La importacion de KeyStore aqui es perezosa para evitar el ciclo.
+
+def encrypt_and_sign_from_keystore(
+    keystore,
+    sender_name: str,
+    sender_password: str,
+    plaintext: bytes,
+    filename: str,
+    recipients_x25519: List[X25519PublicKey],
+    algo: Algorithm = Algorithm.AES_256_GCM,
+    timestamp: Optional[int] = None,
+) -> bytes:
+    """
+    Envuelve `secure_encrypt_and_sign` desbloqueando la Ed25519 del
+    remitente desde el keystore. La clave privada vive solo dentro de
+    esta llamada (no se cachea).
+    """
+    signer_priv = keystore.unlock_signing_key(sender_name, sender_password)
+    return secure_encrypt_and_sign(
+        plaintext=plaintext,
+        filename=filename,
+        recipients=recipients_x25519,
+        signer_priv=signer_priv,
+        algo=algo,
+        timestamp=timestamp,
+    )
+
+
+def verify_and_decrypt_from_keystore(
+    keystore,
+    recipient_name: str,
+    recipient_password: str,
+    signed_container: bytes,
+    expected_signer_pub: Ed25519PublicKey,
+    max_age_seconds: Optional[int] = DEFAULT_MAX_AGE,
+) -> Tuple[bytes, dict]:
+    """
+    Envuelve `secure_verify_and_decrypt` desbloqueando la X25519 del
+    destinatario desde el keystore. La privada vive solo dentro de
+    esta llamada (no se cachea).
+
+    `expected_signer_pub` se puede obtener via
+    `keystore.get_public_keys(sender_name)["ed25519_pub"]`.
+    """
+    recipient_priv = keystore.unlock_encryption_key(recipient_name, recipient_password)
+    return secure_verify_and_decrypt(
+        signed_container=signed_container,
+        expected_signer_pub=expected_signer_pub,
+        recipient_priv=recipient_priv,
+        max_age_seconds=max_age_seconds,
+    )
