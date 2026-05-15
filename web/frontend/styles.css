@@ -1,0 +1,182 @@
+:root {
+  --bg:         #0a0a0c;
+  --bg-hover:   #14141a;
+  --text:       #e8e8ea;
+  --muted:      #6f7280;
+  --muted-2:    #94959e;
+  --hairline:   #1d1d22;
+  --hairline-2: #2a2a31;
+  --accent:     #7dd3a2;
+  --accent-fg:  #0a0a0c;
+  --error:      #ef6f7a;
+  --warn:       #e5b768;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); }
+body {
+  color: var(--text);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+  min-height: 100vh;
+}
+
+a { color: inherit; }
+hr { border: none; border-top: 1px solid var(--hairline); margin: 24px 0; }
+
+/* Layout ---------------------------------------------------------------- */
+header {
+  padding: 28px 32px 20px;
+  max-width: 880px; margin: 0 auto;
+}
+header h1 {
+  margin: 0; font-size: 15px; font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.subtitle {
+  margin: 2px 0 0; color: var(--muted);
+  font-size: 13px;
+}
+
+main {
+  max-width: 880px; margin: 0 auto;
+  padding: 0 32px 64px;
+}
+
+/* Boot ------------------------------------------------------------------ */
+.boot {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+.boot-card { text-align: center; max-width: 360px; padding: 0 16px; }
+.boot-card h2 {
+  margin: 8px 0 4px; font-size: 14px; font-weight: 500;
+  color: var(--text);
+}
+.boot-card .muted { font-size: 13px; }
+.spinner { display: none; }
+
+.hidden { display: none !important; }
+
+/* Tabs ------------------------------------------------------------------ */
+.tabs {
+  display: flex; gap: 24px;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 28px;
+}
+.tab {
+  padding: 10px 0; background: none; border: none;
+  color: var(--muted); cursor: pointer; font: inherit;
+  border-bottom: 1px solid transparent;
+  margin-bottom: -1px;
+}
+.tab:hover { color: var(--text); }
+.tab.active {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+/* Panels ---------------------------------------------------------------- */
+.panel {
+  margin-bottom: 40px;
+}
+.panel h2 {
+  margin: 0 0 4px;
+  font-size: 14px; font-weight: 600;
+  letter-spacing: 0.1px;
+}
+.panel p { margin: 4px 0 16px; }
+.panel-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 20px;
+}
+.panel-head h2 { margin: 0; }
+
+.muted { color: var(--muted); font-size: 13px; }
+
+/* Forms ----------------------------------------------------------------- */
+form { display: flex; flex-direction: column; gap: 14px; max-width: 480px; }
+form label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--muted);
+}
+form input, form select, form textarea {
+  padding: 8px 10px;
+  background: transparent; color: var(--text);
+  border: 1px solid var(--hairline-2); border-radius: 4px;
+  font: inherit;
+  transition: border-color 0.12s ease;
+}
+form textarea {
+  resize: vertical;
+  font: 12px/1.45 ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+form input:focus, form select:focus, form textarea:focus {
+  outline: none; border-color: var(--muted-2);
+}
+form input::placeholder, form textarea::placeholder { color: var(--muted); }
+
+button {
+  padding: 7px 12px;
+  background: transparent; color: var(--muted-2);
+  border: 1px solid var(--hairline-2); border-radius: 4px;
+  cursor: pointer; font: inherit;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+button:hover { color: var(--text); border-color: var(--muted-2); }
+button.primary {
+  background: var(--accent); color: var(--accent-fg);
+  border-color: var(--accent); font-weight: 500;
+}
+button.primary:hover { filter: brightness(1.05); border-color: var(--accent); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+/* Tabla ----------------------------------------------------------------- */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table th, table td {
+  text-align: left; padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline);
+  vertical-align: middle;
+}
+table th {
+  font-weight: 500; color: var(--muted);
+  font-size: 11px; text-transform: none; letter-spacing: 0;
+  padding-bottom: 8px;
+}
+table tr:last-child td { border-bottom: none; }
+table tbody tr:hover { background: var(--bg-hover); }
+table td.actions { text-align: right; white-space: nowrap; }
+table td.actions button {
+  padding: 3px 8px; font-size: 12px;
+  margin-left: 4px;
+}
+.mono {
+  font: 12px ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  color: var(--muted-2);
+}
+
+.badge {
+  font-size: 11px; color: var(--muted);
+}
+.badge.active  { color: var(--accent); }
+.badge.revoked { color: var(--error); }
+.badge.rotated { color: var(--warn); }
+
+/* Mensajes -------------------------------------------------------------- */
+.msg { margin-top: 12px; font-size: 13px; min-height: 1em; color: var(--muted-2); }
+.msg.error { color: var(--error); }
+.msg.info  { color: var(--accent); }
+
+/* Dialog ---------------------------------------------------------------- */
+dialog {
+  background: #101014; color: var(--text);
+  border: 1px solid var(--hairline-2); border-radius: 6px;
+  padding: 24px; min-width: 360px; max-width: 90vw;
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+dialog h2 { margin: 0 0 16px; font-size: 14px; font-weight: 600; }
+dialog form { gap: 12px; max-width: none; }
