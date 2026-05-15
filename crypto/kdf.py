@@ -33,9 +33,10 @@ Referencia: RFC 7914 (scrypt), OWASP CS Password Storage.
 
 from __future__ import annotations
 
-import hashlib
 import os
 from typing import Dict
+
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 
 # ── parametros por defecto ────────────────────────────────────────────────────
@@ -120,15 +121,14 @@ def derive_key(password: str, salt: bytes, params: Dict[str, int]) -> bytes:
 
     validate_params(params)
 
-    return hashlib.scrypt(
-        password=password.encode("utf-8"),
+    # Usamos la implementacion de `cryptography` (no `hashlib.scrypt`) para que
+    # el mismo modulo corra en Pyodide, donde hashlib no trae scrypt.
+    # El algoritmo y los parametros son identicos.
+    kdf = Scrypt(
         salt=bytes(salt),
+        length=params["dklen"],
         n=params["n"],
         r=params["r"],
         p=params["p"],
-        dklen=params["dklen"],
-        # maxmem: scrypt por defecto exige >= 128*n*r bytes; lo hacemos
-        # explicito con un margen para que `n` configurables grandes no
-        # tropiecen con el limite por defecto de Python (~32 MiB).
-        maxmem=128 * params["n"] * params["r"] * 2,
     )
+    return kdf.derive(password.encode("utf-8"))
