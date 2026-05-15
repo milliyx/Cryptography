@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SDDV — Boveda Digital Segura</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>SDDV</h1>
+    <p class="subtitle">Boveda Digital Segura de Documentos</p>
+  </header>
+
+  <main>
+    <section id="auth-view">
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Entrar</button>
+        <button class="tab" data-tab="register">Crear cuenta</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <label>Correo
+          <input type="email" name="email" required autocomplete="email">
+        </label>
+        <label>Contrasena
+          <input type="password" name="password" required autocomplete="current-password">
+        </label>
+        <button type="submit">Entrar</button>
+      </form>
+
+      <form id="register-form" class="auth-form hidden">
+        <label>Nombre
+          <input type="text" name="name" required>
+        </label>
+        <label>Correo
+          <input type="email" name="email" required autocomplete="email">
+        </label>
+        <label>Contrasena (>= 8 chars)
+          <input type="password" name="password" required minlength="8" autocomplete="new-password">
+        </label>
+        <button type="submit">Crear cuenta</button>
+      </form>
+
+      <p id="auth-msg" class="msg"></p>
+    </section>
+
+    <section id="app-view" class="hidden">
+      <div class="user-bar">
+        <span>Sesion: <strong id="user-name"></strong> (<span id="user-email"></span>)</span>
+        <button id="logout-btn">Cerrar sesion</button>
+      </div>
+      <p>Aqui ira el panel de identidades, cifrado, firmas, etc. (en construccion)</p>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
