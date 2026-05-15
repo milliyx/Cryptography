@@ -50,7 +50,30 @@
         <span>Sesion: <strong id="user-name"></strong> (<span id="user-email"></span>)</span>
         <button id="logout-btn">Cerrar sesion</button>
       </div>
-      <p>Aqui ira el panel de identidades, cifrado, firmas, etc. (en construccion)</p>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Mis identidades</h2>
+          <button id="new-identity-btn" disabled title="Pendiente: requiere la function init-identity">
+            Nueva identidad
+          </button>
+        </div>
+
+        <div id="identities-loading" class="muted">Cargando...</div>
+        <div id="identities-empty" class="muted hidden">No tienes identidades todavia.</div>
+
+        <table id="identities-table" class="hidden">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Tamano</th>
+              <th>Creada</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="identities-rows"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
