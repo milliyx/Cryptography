@@ -9,64 +9,39 @@
 <body>
   <header>
     <h1>SDDV</h1>
-    <p class="subtitle">Boveda Digital Segura de Documentos</p>
+    <p class="subtitle">Boveda Digital Segura de Documentos — todo corre en tu navegador</p>
   </header>
 
-  <main>
-    <section id="auth-view">
-      <div class="tabs">
-        <button class="tab active" data-tab="login">Entrar</button>
-        <button class="tab" data-tab="register">Crear cuenta</button>
-      </div>
+  <div id="boot" class="boot">
+    <div class="boot-card">
+      <div class="spinner"></div>
+      <h2 id="boot-title">Cargando entorno cripto...</h2>
+      <p id="boot-detail" class="muted">Descargando Python en el navegador (~10 MB la primera vez)</p>
+    </div>
+  </div>
 
-      <form id="login-form" class="auth-form">
-        <label>Correo
-          <input type="email" name="email" required autocomplete="email">
-        </label>
-        <label>Contrasena
-          <input type="password" name="password" required autocomplete="current-password">
-        </label>
-        <button type="submit">Entrar</button>
-      </form>
+  <main id="app" class="hidden">
+    <nav class="tabs">
+      <button class="tab active" data-view="identities">Identidades</button>
+      <button class="tab" data-view="secure-send">Cifrar &amp; firmar</button>
+      <button class="tab" data-view="secure-recv">Verificar &amp; descifrar</button>
+      <button class="tab" data-view="backup">Backup</button>
+    </nav>
 
-      <form id="register-form" class="auth-form hidden">
-        <label>Nombre
-          <input type="text" name="name" required>
-        </label>
-        <label>Correo
-          <input type="email" name="email" required autocomplete="email">
-        </label>
-        <label>Contrasena (>= 8 chars)
-          <input type="password" name="password" required minlength="8" autocomplete="new-password">
-        </label>
-        <button type="submit">Crear cuenta</button>
-      </form>
-
-      <p id="auth-msg" class="msg"></p>
-    </section>
-
-    <section id="app-view" class="hidden">
-      <div class="user-bar">
-        <span>Sesion: <strong id="user-name"></strong> (<span id="user-email"></span>)</span>
-        <button id="logout-btn">Cerrar sesion</button>
-      </div>
-
+    <!-- Identidades ------------------------------------------------------- -->
+    <section class="view" data-view="identities">
       <div class="panel">
         <div class="panel-head">
           <h2>Mis identidades</h2>
-          <button id="new-identity-btn" disabled title="Pendiente: requiere la function init-identity">
-            Nueva identidad
-          </button>
+          <button id="btn-new-identity" class="primary">Nueva identidad</button>
         </div>
-
-        <div id="identities-loading" class="muted">Cargando...</div>
-        <div id="identities-empty" class="muted hidden">No tienes identidades todavia.</div>
-
+        <p id="identities-empty" class="muted hidden">No tienes identidades todavia.</p>
         <table id="identities-table" class="hidden">
           <thead>
             <tr>
               <th>Nombre</th>
-              <th>Tamano</th>
+              <th>Estado</th>
+              <th>Fingerprint Ed25519</th>
               <th>Creada</th>
               <th></th>
             </tr>
@@ -75,8 +50,122 @@
         </table>
       </div>
     </section>
+
+    <!-- Cifrar y firmar --------------------------------------------------- -->
+    <section class="view hidden" data-view="secure-send">
+      <div class="panel">
+        <h2>Cifrar archivo y firmarlo</h2>
+        <p class="muted">Selecciona un archivo, los destinatarios (por fingerprint X25519) y la identidad con la que firmas. Salida: contenedor .sddh firmado.</p>
+        <form id="form-send">
+          <label>Archivo a cifrar
+            <input type="file" name="file" required>
+          </label>
+          <label>Identidad firmante
+            <select name="signer" required></select>
+          </label>
+          <label>Password de la identidad firmante
+            <input type="password" name="signer_pwd" required>
+          </label>
+          <label>Fingerprints X25519 de los destinatarios (uno por linea, 64 hex)
+            <textarea name="recipients" rows="3" placeholder="abcd1234..." required></textarea>
+          </label>
+          <button type="submit" class="primary">Cifrar y firmar</button>
+        </form>
+        <p id="send-result" class="msg"></p>
+      </div>
+    </section>
+
+    <!-- Verificar y descifrar --------------------------------------------- -->
+    <section class="view hidden" data-view="secure-recv">
+      <div class="panel">
+        <h2>Verificar firma y descifrar</h2>
+        <p class="muted">Selecciona el contenedor firmado, la identidad con la que descifras y el fingerprint Ed25519 del firmante esperado.</p>
+        <form id="form-recv">
+          <label>Contenedor (.sddh)
+            <input type="file" name="container" required>
+          </label>
+          <label>Identidad destinataria
+            <select name="recipient" required></select>
+          </label>
+          <label>Password de la identidad destinataria
+            <input type="password" name="recipient_pwd" required>
+          </label>
+          <label>Fingerprint Ed25519 esperado del firmante
+            <input type="text" name="signer_fp" required pattern="[a-fA-F0-9]{64}" placeholder="64 hex">
+          </label>
+          <button type="submit" class="primary">Verificar y descifrar</button>
+        </form>
+        <p id="recv-result" class="msg"></p>
+      </div>
+    </section>
+
+    <!-- Backup ------------------------------------------------------------ -->
+    <section class="view hidden" data-view="backup">
+      <div class="panel">
+        <h2>Exportar backup</h2>
+        <form id="form-backup">
+          <label>Identidad
+            <select name="name" required></select>
+          </label>
+          <label>Password de la identidad
+            <input type="password" name="active_pwd" required>
+          </label>
+          <label>Password independiente para el backup
+            <input type="password" name="backup_pwd" required minlength="12">
+          </label>
+          <button type="submit" class="primary">Generar backup</button>
+        </form>
+        <p id="backup-result" class="msg"></p>
+      </div>
+
+      <div class="panel">
+        <h2>Restaurar backup</h2>
+        <form id="form-restore">
+          <label>Archivo .sddv_backup
+            <input type="file" name="file" required>
+          </label>
+          <label>Password del backup
+            <input type="password" name="backup_pwd" required>
+          </label>
+          <label>Nuevo password activo (para la copia restaurada)
+            <input type="password" name="new_pwd" required minlength="12">
+          </label>
+          <label>Nombre con el que restaurar (opcional)
+            <input type="text" name="as_name" placeholder="dejar vacio = nombre original">
+          </label>
+          <button type="submit" class="primary">Restaurar</button>
+        </form>
+        <p id="restore-result" class="msg"></p>
+      </div>
+    </section>
   </main>
 
+  <!-- Modal: nueva identidad --------------------------------------------- -->
+  <dialog id="modal-new-identity">
+    <form method="dialog" id="form-new-identity">
+      <h2>Nueva identidad</h2>
+      <label>Nombre
+        <input type="text" name="name" required maxlength="64" pattern="[^/\\:*?&quot;&lt;&gt;|]+">
+      </label>
+      <label>Password (>= 12 caracteres)
+        <input type="password" name="password" required minlength="12">
+      </label>
+      <label>Repetir password
+        <input type="password" name="password2" required minlength="12">
+      </label>
+      <label>Comentario (opcional)
+        <input type="text" name="comment" maxlength="200">
+      </label>
+      <p id="new-identity-err" class="msg error"></p>
+      <div class="row">
+        <button type="button" value="cancel" id="btn-cancel-new">Cancelar</button>
+        <button type="submit" class="primary">Crear</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Pyodide se carga aqui antes del app -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

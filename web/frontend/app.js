@@ -1,96 +1,18 @@
-// Punto de entrada del frontend. Maneja auth con Appwrite y muestra la vista
-// que toca (login si no hay sesion, app si la hay).
+// app.js — entrypoint del frontend SDDV.
+// Inicializa Pyodide, monta las vistas y conecta los handlers de cada operacion.
 
-import { Client, Account, Storage, ID }
-  from "https://cdn.jsdelivr.net/npm/appwrite@16.0.2/+esm";
+import { initRuntime } from "./pyodide-runtime.js";
 
-import {
-  APPWRITE_ENDPOINT,
-  APPWRITE_PROJECT_ID,
-  KEYSTORE_BUCKET_ID,
-} from "./config.js";
+const $  = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
 
-const client  = new Client().setEndpoint(APPWRITE_ENDPOINT).setProject(APPWRITE_PROJECT_ID);
-const account = new Account(client);
-const storage = new Storage(client);
+const bootEl       = $("#boot");
+const bootDetail   = $("#boot-detail");
+const appEl        = $("#app");
 
-// ---- referencias al DOM ----
-const $ = (sel) => document.querySelector(sel);
-const authView     = $("#auth-view");
-const appView      = $("#app-view");
-const loginForm    = $("#login-form");
-const registerForm = $("#register-form");
-const tabs         = document.querySelectorAll(".tab");
-const msg          = $("#auth-msg");
-const userName     = $("#user-name");
-const userEmail    = $("#user-email");
-const logoutBtn    = $("#logout-btn");
+let runtime = null;     // se llena tras initRuntime
 
-const idLoading    = $("#identities-loading");
-const idEmpty      = $("#identities-empty");
-const idTable      = $("#identities-table");
-const idRows       = $("#identities-rows");
-
-// ---- helpers ----
-function showError(text)  { msg.textContent = text; msg.className = "msg error"; }
-function showInfo(text)   { msg.textContent = text; msg.className = "msg info"; }
-function clearMsg()       { msg.textContent = "";   msg.className = "msg"; }
-
-function showAuthView() {
-  appView.classList.add("hidden");
-  authView.classList.remove("hidden");
-}
-
-function showAppView(user) {
-  authView.classList.add("hidden");
-  appView.classList.remove("hidden");
-  userName.textContent  = user.name || "(sin nombre)";
-  userEmail.textContent = user.email;
-  loadIdentities();
-}
-
-// ---- listado de identidades ----
-function fmtBytes(n) {
-  if (n < 1024) return n + " B";
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
-  return (n / (1024 * 1024)).toFixed(1) + " MB";
-}
-
-function fmtDate(iso) {
-  if (!iso) return "";
-  try { return new Date(iso).toLocaleString(); } catch { return iso; }
-}
-
-async function loadIdentities() {
-  idLoading.classList.remove("hidden");
-  idEmpty.classList.add("hidden");
-  idTable.classList.add("hidden");
-  idRows.innerHTML = "";
-
-  try {
-    const res = await storage.listFiles(KEYSTORE_BUCKET_ID);
-    idLoading.classList.add("hidden");
-
-    if (!res.files || res.files.length === 0) {
-      idEmpty.classList.remove("hidden");
-      return;
-    }
-
-    for (const f of res.files) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(f.name.replace(/\.json$/, ""))}</td>
-        <td>${fmtBytes(f.sizeOriginal)}</td>
-        <td>${fmtDate(f.$createdAt)}</td>
-        <td class="actions"><span class="muted">(proximamente)</span></td>
-      `;
-      idRows.appendChild(tr);
-    }
-    idTable.classList.remove("hidden");
-  } catch (err) {
-    idLoading.textContent = "Error al cargar: " + (err.message || err);
-  }
-}
+// ── utilidades ───────────────────────────────────────────────────────────
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({
@@ -98,59 +20,305 @@ function escapeHtml(s) {
   }[c]));
 }
 
-// ---- tabs login / register ----
-tabs.forEach(t => t.addEventListener("click", () => {
-  tabs.forEach(x => x.classList.toggle("active", x === t));
-  const which = t.dataset.tab;
-  loginForm.classList.toggle("hidden", which !== "login");
-  registerForm.classList.toggle("hidden", which !== "register");
-  clearMsg();
-}));
+function showMsg(el, text, kind = "info") {
+  el.textContent = text;
+  el.className = "msg " + kind;
+}
 
-// ---- login ----
-loginForm.addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  clearMsg();
-  const fd = new FormData(loginForm);
+function downloadBytes(filename, bytes, mime = "application/octet-stream") {
+  const blob = new Blob([bytes], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Convierte el resultado de pyodide.runPython (PyProxy o tipo nativo) a JS.
+function pyToJs(val) {
+  if (val && typeof val.toJs === "function") {
+    const out = val.toJs({ dict_converter: Object.fromEntries });
+    val.destroy();
+    return out;
+  }
+  return val;
+}
+
+// Llama a una funcion de sddv_api pasando argumentos por posicion.
+// Convierte cada argumento JS al equivalente Python adecuado.
+async function callPy(funcName, args = []) {
+  const { pyodide } = runtime;
+  // Subimos los argumentos al namespace global de Python
+  const argNames = [];
+  for (let i = 0; i < args.length; i++) {
+    const n = `__arg_${i}`;
+    pyodide.globals.set(n, args[i]);
+    argNames.push(n);
+  }
+  const src = `sddv_api.${funcName}(${argNames.join(", ")})`;
   try {
-    await account.createEmailPasswordSession(fd.get("email"), fd.get("password"));
-    const user = await account.get();
-    showAppView(user);
-  } catch (err) {
-    showError(err.message || "No se pudo iniciar sesion");
+    const result = pyodide.runPython(src);
+    return pyToJs(result);
+  } finally {
+    for (const n of argNames) pyodide.globals.delete(n);
+  }
+}
+
+// ── navegacion entre vistas ──────────────────────────────────────────────
+
+function switchView(name) {
+  $$(".tab").forEach(t => t.classList.toggle("active", t.dataset.view === name));
+  $$(".view").forEach(v => v.classList.toggle("hidden", v.dataset.view !== name));
+}
+
+$$(".tab").forEach(t => t.addEventListener("click", () => switchView(t.dataset.view)));
+
+// ── identidades ──────────────────────────────────────────────────────────
+
+const idEmpty   = $("#identities-empty");
+const idTable   = $("#identities-table");
+const idRows    = $("#identities-rows");
+
+async function refreshIdentities() {
+  idEmpty.classList.add("hidden");
+  idTable.classList.add("hidden");
+  idRows.innerHTML = "";
+
+  const items = await callPy("list_identities");
+
+  if (!items || items.length === 0) {
+    idEmpty.classList.remove("hidden");
+    updateSelects([]);
+    return;
+  }
+
+  for (const it of items) {
+    const tr = document.createElement("tr");
+    const fpShort = (it.ed25519_fp || "").slice(0, 12) + "..." + (it.ed25519_fp || "").slice(-8);
+    tr.innerHTML = `
+      <td>${escapeHtml(it.name)}</td>
+      <td><span class="badge ${escapeHtml(it.status)}">${escapeHtml(it.status)}</span></td>
+      <td class="mono" title="${escapeHtml(it.ed25519_fp)}">${escapeHtml(fpShort)}</td>
+      <td class="muted">${escapeHtml((it.created_at || "").slice(0, 19).replace("T", " "))}</td>
+      <td class="actions">
+        <button data-act="info"   data-name="${escapeHtml(it.name)}">ver</button>
+        <button data-act="revoke" data-name="${escapeHtml(it.name)}">revocar</button>
+        <button data-act="delete" data-name="${escapeHtml(it.name)}">borrar</button>
+      </td>
+    `;
+    idRows.appendChild(tr);
+  }
+  idTable.classList.remove("hidden");
+  updateSelects(items.map(x => x.name));
+}
+
+// llena los <select> de las otras vistas con los nombres disponibles
+function updateSelects(names) {
+  const targets = $$('select[name="signer"], select[name="recipient"], select[name="name"]');
+  for (const sel of targets) {
+    const prev = sel.value;
+    sel.innerHTML = "";
+    for (const n of names) {
+      const opt = document.createElement("option");
+      opt.value = n; opt.textContent = n;
+      sel.appendChild(opt);
+    }
+    if (names.includes(prev)) sel.value = prev;
+  }
+}
+
+// click handlers de las filas
+idRows.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button[data-act]");
+  if (!btn) return;
+  const name = btn.dataset.name;
+  const act  = btn.dataset.act;
+
+  if (act === "info") {
+    try {
+      const info = await callPy("get_public_info", [name]);
+      alert([
+        `Identidad: ${info.name}`,
+        `Estado:    ${info.status}`,
+        `Ed25519 fp: ${info.fingerprints.ed25519}`,
+        info.fingerprints.x25519 ? `X25519  fp: ${info.fingerprints.x25519}` : null,
+        info.ed25519_pub_hex ? `\nEd25519 pub (raw hex):\n${info.ed25519_pub_hex}` : null,
+        info.x25519_pub_hex  ? `\nX25519  pub (raw hex):\n${info.x25519_pub_hex}`  : null,
+        info.expires_at ? `\nExpira: ${info.expires_at}` : null,
+      ].filter(Boolean).join("\n"));
+    } catch (err) {
+      alert("Error: " + (err.message || err));
+    }
+  }
+  else if (act === "revoke") {
+    const reason = prompt(`Revocar "${name}". Motivo (opcional):`);
+    if (reason === null) return;
+    try {
+      await callPy("revoke_identity", [name, reason || ""]);
+      await runtime.persistKeystore();
+      await refreshIdentities();
+    } catch (err) {
+      alert("Error: " + (err.message || err));
+    }
+  }
+  else if (act === "delete") {
+    const pwd = prompt(`Borrar "${name}" requiere el password de la identidad:`);
+    if (!pwd) return;
+    try {
+      await callPy("delete_identity", [name, pwd]);
+      await runtime.persistKeystore();
+      await refreshIdentities();
+    } catch (err) {
+      alert("Error: " + (err.message || err));
+    }
   }
 });
 
-// ---- registro ----
-registerForm.addEventListener("submit", async (ev) => {
+// ── modal: nueva identidad ───────────────────────────────────────────────
+
+const modal     = $("#modal-new-identity");
+const formNew   = $("#form-new-identity");
+const newErr    = $("#new-identity-err");
+
+$("#btn-new-identity").addEventListener("click", () => {
+  formNew.reset();
+  newErr.textContent = "";
+  modal.showModal();
+});
+
+$("#btn-cancel-new").addEventListener("click", () => modal.close());
+
+formNew.addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  clearMsg();
-  const fd = new FormData(registerForm);
+  newErr.textContent = "";
+  const fd = new FormData(formNew);
+  const name = (fd.get("name") || "").trim();
+  const p1   = fd.get("password");
+  const p2   = fd.get("password2");
+  const comment = (fd.get("comment") || "").trim();
+  if (p1 !== p2) { newErr.textContent = "Los passwords no coinciden"; return; }
+
   try {
-    await account.create(ID.unique(), fd.get("email"), fd.get("password"), fd.get("name"));
-    await account.createEmailPasswordSession(fd.get("email"), fd.get("password"));
-    const user = await account.get();
-    showAppView(user);
+    await callPy("create_identity", [name, p1, comment]);
+    await runtime.persistKeystore();
+    modal.close();
+    await refreshIdentities();
   } catch (err) {
-    showError(err.message || "No se pudo crear la cuenta");
+    newErr.textContent = err.message || String(err);
   }
 });
 
-// ---- logout ----
-logoutBtn.addEventListener("click", async () => {
-  try { await account.deleteSession("current"); } catch (_) {}
-  showAuthView();
-  loginForm.reset();
-  registerForm.reset();
-  clearMsg();
+// ── cifrar + firmar ──────────────────────────────────────────────────────
+
+$("#form-send").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const out = $("#send-result");
+  showMsg(out, "Cifrando...", "info");
+  const fd = new FormData(ev.currentTarget);
+  const file   = fd.get("file");
+  const signer = fd.get("signer");
+  const pwd    = fd.get("signer_pwd");
+  const recipients = String(fd.get("recipients"))
+    .split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+
+  if (recipients.length === 0) { showMsg(out, "Sin destinatarios", "error"); return; }
+  if (!file || file.size === 0) { showMsg(out, "Archivo vacio", "error"); return; }
+
+  try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const container = await callPy("encrypt_and_sign",
+      [signer, pwd, recipients, buf, file.name]);
+    const bytes = container instanceof Uint8Array ? container : new Uint8Array(container);
+    downloadBytes(file.name + ".sddh", bytes);
+    showMsg(out, `Listo. Descargando ${file.name}.sddh (${bytes.byteLength} bytes).`, "info");
+  } catch (err) {
+    showMsg(out, "Error: " + (err.message || err), "error");
+  }
 });
 
-// ---- al cargar: revisar si ya hay sesion ----
+// ── verificar + descifrar ────────────────────────────────────────────────
+
+$("#form-recv").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const out = $("#recv-result");
+  showMsg(out, "Verificando y descifrando...", "info");
+  const fd = new FormData(ev.currentTarget);
+  const file = fd.get("container");
+  const recipient = fd.get("recipient");
+  const pwd = fd.get("recipient_pwd");
+  const signerFp = fd.get("signer_fp");
+
+  if (!file || file.size === 0) { showMsg(out, "Archivo vacio", "error"); return; }
+
+  try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const res = await callPy("verify_and_decrypt", [recipient, pwd, buf, signerFp]);
+    const plaintext = res.plaintext instanceof Uint8Array
+      ? res.plaintext
+      : new Uint8Array(res.plaintext);
+    const meta = res.metadata || {};
+    const outName = meta.filename || "descifrado.bin";
+    downloadBytes(outName, plaintext);
+    showMsg(out,
+      `Firma valida. Descargando ${outName} (${plaintext.byteLength} bytes).`,
+      "info");
+  } catch (err) {
+    showMsg(out, "Error: " + (err.message || err), "error");
+  }
+});
+
+// ── backup ───────────────────────────────────────────────────────────────
+
+$("#form-backup").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const out = $("#backup-result");
+  showMsg(out, "Generando backup...", "info");
+  const fd = new FormData(ev.currentTarget);
+  const name = fd.get("name");
+  try {
+    const json = await callPy("backup_export",
+      [name, fd.get("active_pwd"), fd.get("backup_pwd")]);
+    downloadBytes(`${name}.sddv_backup`, new TextEncoder().encode(json), "application/json");
+    showMsg(out, `Backup descargado: ${name}.sddv_backup`, "info");
+  } catch (err) {
+    showMsg(out, "Error: " + (err.message || err), "error");
+  }
+});
+
+$("#form-restore").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const out = $("#restore-result");
+  showMsg(out, "Restaurando...", "info");
+  const fd = new FormData(ev.currentTarget);
+  const file = fd.get("file");
+  if (!file || file.size === 0) { showMsg(out, "Archivo vacio", "error"); return; }
+  try {
+    const text = await file.text();
+    const asName = (fd.get("as_name") || "").trim() || null;
+    const info = await callPy("backup_import",
+      [text, fd.get("backup_pwd"), fd.get("new_pwd"), asName]);
+    await runtime.persistKeystore();
+    await refreshIdentities();
+    showMsg(out, `Restaurada como "${info.name}".`, "info");
+  } catch (err) {
+    showMsg(out, "Error: " + (err.message || err), "error");
+  }
+});
+
+// ── bootstrap ────────────────────────────────────────────────────────────
+
 (async () => {
   try {
-    const user = await account.get();
-    showAppView(user);
-  } catch {
-    showAuthView();
+    runtime = await initRuntime((msg) => { bootDetail.textContent = msg; });
+    bootEl.classList.add("hidden");
+    appEl.classList.remove("hidden");
+    await refreshIdentities();
+  } catch (err) {
+    bootDetail.textContent = "Error: " + (err.message || err);
+    bootDetail.classList.add("error");
+    console.error(err);
   }
 })();
