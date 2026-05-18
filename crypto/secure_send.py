@@ -196,13 +196,12 @@ def verify_and_decrypt_from_keystore(
     destinatario desde el keystore. La privada vive solo dentro de
     esta llamada (no se cachea).
 
+    La firma se verifica ANTES de desbloquear la privada para no pagar
+    scrypt en mensajes con firma forjada.
+
     `expected_signer_pub` se puede obtener via
     `keystore.get_public_keys(sender_name)["ed25519_pub"]`.
     """
+    sddh_clean = verify_hybrid_container(signed_container, expected_signer_pub)
     recipient_priv = keystore.unlock_encryption_key(recipient_name, recipient_password)
-    return secure_verify_and_decrypt(
-        signed_container=signed_container,
-        expected_signer_pub=expected_signer_pub,
-        recipient_priv=recipient_priv,
-        max_age_seconds=max_age_seconds,
-    )
+    return decrypt_for_recipient(sddh_clean, recipient_priv, max_age_seconds=max_age_seconds)
