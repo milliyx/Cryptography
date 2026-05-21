@@ -20,6 +20,38 @@ function escapeHtml(s) {
   }[c]));
 }
 
+// Convierte un error (idealmente un PythonError de Pyodide con traceback
+// completo) en un mensaje corto y legible. Mapea las excepciones tipicas
+// del proyecto a explicaciones en espanol.
+function formatError(err) {
+  if (!err) return "Error desconocido";
+  let msg = err.message || String(err);
+
+  // Pyodide trae el traceback completo en .message. Quedarnos solo con la
+  // ultima linea no vacia — tipicamente "ExcType: mensaje".
+  if (msg.includes("Traceback")) {
+    const lines = msg.split("\n").map(s => s.trim()).filter(Boolean);
+    msg = lines[lines.length - 1] || msg;
+  }
+
+  const friendly = {
+    "InvalidTag":                 "Password incorrecto o el archivo fue modificado.",
+    "InvalidSignature":           "La firma no corresponde al firmante esperado.",
+    "IdentityNotFoundError":      "Esa identidad no existe en tu keystore.",
+    "IdentityAlreadyExistsError": "Ya tienes una identidad con ese nombre.",
+    "IdentityRevokedError":       "Esta identidad fue revocada.",
+    "IdentityExpiredError":       "Esta identidad ya expiro.",
+  };
+  for (const [t, nice] of Object.entries(friendly)) {
+    if (msg.includes(t)) return nice;
+  }
+
+  // Quitar prefijos tipo "ValueError: " que no aportan al usuario.
+  const m = msg.match(/^[A-Z]\w*Error:\s*(.+)$/);
+  if (m) return m[1];
+  return msg;
+}
+
 function showMsg(el, text, kind = "info") {
   el.textContent = text;
   el.className = "msg " + kind;
@@ -121,6 +153,17 @@ function updateSelects(names) {
   for (const sel of targets) {
     const prev = sel.value;
     sel.innerHTML = "";
+    if (names.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "— Sin identidades. Crea una en la pestana Identidades —";
+      opt.disabled = true;
+      opt.selected = true;
+      sel.appendChild(opt);
+      sel.disabled = true;
+      continue;
+    }
+    sel.disabled = false;
     for (const n of names) {
       const opt = document.createElement("option");
       opt.value = n; opt.textContent = n;
@@ -150,7 +193,7 @@ idRows.addEventListener("click", async (ev) => {
         info.expires_at ? `\nExpira: ${info.expires_at}` : null,
       ].filter(Boolean).join("\n"));
     } catch (err) {
-      alert("Error: " + (err.message || err));
+      alert("Error: " + (formatError(err)));
     }
   }
   else if (act === "revoke") {
@@ -161,7 +204,7 @@ idRows.addEventListener("click", async (ev) => {
       await runtime.persistKeystore();
       await refreshIdentities();
     } catch (err) {
-      alert("Error: " + (err.message || err));
+      alert("Error: " + (formatError(err)));
     }
   }
   else if (act === "delete") {
@@ -172,7 +215,7 @@ idRows.addEventListener("click", async (ev) => {
       await runtime.persistKeystore();
       await refreshIdentities();
     } catch (err) {
-      alert("Error: " + (err.message || err));
+      alert("Error: " + (formatError(err)));
     }
   }
 });
@@ -207,7 +250,7 @@ formNew.addEventListener("submit", async (ev) => {
     modal.close();
     await refreshIdentities();
   } catch (err) {
-    newErr.textContent = err.message || String(err);
+    newErr.textContent = formatError(err);
   }
 });
 
@@ -235,7 +278,7 @@ $("#form-send").addEventListener("submit", async (ev) => {
     downloadBytes(file.name + ".sddh", bytes);
     showMsg(out, `Listo. Descargando ${file.name}.sddh (${bytes.byteLength} bytes).`, "info");
   } catch (err) {
-    showMsg(out, "Error: " + (err.message || err), "error");
+    showMsg(out, "Error: " + (formatError(err)), "error");
   }
 });
 
@@ -266,7 +309,7 @@ $("#form-recv").addEventListener("submit", async (ev) => {
       `Firma valida. Descargando ${outName} (${plaintext.byteLength} bytes).`,
       "info");
   } catch (err) {
-    showMsg(out, "Error: " + (err.message || err), "error");
+    showMsg(out, "Error: " + (formatError(err)), "error");
   }
 });
 
@@ -284,7 +327,7 @@ $("#form-backup").addEventListener("submit", async (ev) => {
     downloadBytes(`${name}.sddv_backup`, new TextEncoder().encode(json), "application/json");
     showMsg(out, `Backup descargado: ${name}.sddv_backup`, "info");
   } catch (err) {
-    showMsg(out, "Error: " + (err.message || err), "error");
+    showMsg(out, "Error: " + (formatError(err)), "error");
   }
 });
 
@@ -304,7 +347,7 @@ $("#form-restore").addEventListener("submit", async (ev) => {
     await refreshIdentities();
     showMsg(out, `Restaurada como "${info.name}".`, "info");
   } catch (err) {
-    showMsg(out, "Error: " + (err.message || err), "error");
+    showMsg(out, "Error: " + (formatError(err)), "error");
   }
 });
 
@@ -342,7 +385,7 @@ function showIPhoneWarning() {
     appEl.classList.remove("hidden");
     await refreshIdentities();
   } catch (err) {
-    bootDetail.textContent = "Error: " + (err.message || err);
+    bootDetail.textContent = "Error: " + (formatError(err));
     bootDetail.classList.add("error");
     console.error(err);
   }
