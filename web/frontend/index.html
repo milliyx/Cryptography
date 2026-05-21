@@ -22,8 +22,8 @@
   <main id="app" class="hidden">
     <nav class="tabs">
       <button class="tab active" data-view="identities">Identidades</button>
-      <button class="tab" data-view="secure-send">Cifrar &amp; firmar</button>
-      <button class="tab" data-view="secure-recv">Verificar &amp; descifrar</button>
+      <button class="tab" data-view="secure-send">Cifrar y firmar</button>
+      <button class="tab" data-view="secure-recv">Verificar y descifrar</button>
       <button class="tab" data-view="backup">Backup</button>
     </nav>
 
@@ -65,8 +65,8 @@
           <label>Password de la identidad firmante
             <input type="password" name="signer_pwd" required>
           </label>
-          <label>Fingerprints X25519 de los destinatarios (uno por linea, 64 hex)
-            <textarea name="recipients" rows="3" placeholder="abcd1234..." required></textarea>
+          <label>Llave publica X25519 de los destinatarios (raw hex, 64 chars, una por linea)
+            <textarea name="recipients" rows="3" placeholder="copia desde 'ver' en Identidades el campo 'X25519 pub (raw hex)'" required></textarea>
           </label>
           <button type="submit" class="primary">Cifrar y firmar</button>
         </form>
@@ -89,8 +89,8 @@
           <label>Password de la identidad destinataria
             <input type="password" name="recipient_pwd" required>
           </label>
-          <label>Fingerprint Ed25519 esperado del firmante
-            <input type="text" name="signer_fp" required pattern="[a-fA-F0-9]{64}" placeholder="64 hex">
+          <label>Llave publica Ed25519 del firmante esperado (raw hex, 64 chars)
+            <input type="text" name="signer_fp" required pattern="[a-fA-F0-9]{64}" placeholder="copia desde 'ver' en Identidades el campo 'Ed25519 pub (raw hex)'">
           </label>
           <button type="submit" class="primary">Verificar y descifrar</button>
         </form>
