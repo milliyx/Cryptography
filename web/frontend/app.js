@@ -310,7 +310,32 @@ $("#form-restore").addEventListener("submit", async (ev) => {
 
 // ── bootstrap ────────────────────────────────────────────────────────────
 
+// iOS Safari / Chrome (mismo motor) limita la memoria WebAssembly por pestana
+// alrededor de 400 MB, lo que rompe la inicializacion de Pyodide en iPhone.
+// Mostramos un aviso en vez de colgar la pagina silenciosamente.
+function isIPhone() {
+  return /iPhone|iPod/.test(navigator.userAgent || "");
+}
+
+function showIPhoneWarning() {
+  const title  = document.getElementById("boot-title");
+  const detail = document.getElementById("boot-detail");
+  title.textContent = "iPhone no soportado";
+  detail.innerHTML =
+    "Esta app ejecuta Python (~10 MB de WebAssembly) en tu navegador para que " +
+    "las llaves privadas nunca salgan de tu equipo. " +
+    "iOS limita la memoria por pestana y cuelga la pagina durante la carga.<br><br>" +
+    "Abrelo desde una computadora o un dispositivo Android.<br><br>" +
+    '<a href="https://github.com/sergiocaballeroo/Cryptography" style="color:inherit;text-decoration:underline">' +
+    "Repositorio en GitHub</a>";
+  detail.classList.remove("error");
+}
+
 (async () => {
+  if (isIPhone()) {
+    showIPhoneWarning();
+    return;
+  }
   try {
     runtime = await initRuntime((msg) => { bootDetail.textContent = msg; });
     bootEl.classList.add("hidden");
