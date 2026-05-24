@@ -180,3 +180,40 @@ dialog {
 dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 dialog h2 { margin: 0 0 16px; font-size: 14px; font-weight: 600; }
 dialog form { gap: 12px; max-width: none; }
+
+/* Panel de detalle de identidad ---------------------------------------- */
+.detail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.detail-row { display: flex; flex-direction: column; gap: 6px; }
+.detail-label { font-size: 12px; color: var(--muted); }
+.detail-label .muted { font-size: 11px; }
+.detail-value { font-size: 13px; }
+.copy-box { display: flex; gap: 6px; align-items: stretch; }
+.copy-box code {
+  flex: 1;
+  padding: 8px 10px;
+  background: #14141a;
+  border: 1px solid var(--hairline-2);
+  border-radius: 4px;
+  font: 12px ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+}
+.copy-box button { flex-shrink: 0; padding: 6px 10px; font-size: 12px; }
+.mono-block {
+  display: block;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font: 12px ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  color: var(--muted-2);
+  word-break: break-all;
+  user-select: all;
+}
+.panel.detail h2 { font-size: 14px; }
+.panel.detail h2 span { font-weight: 500; color: var(--muted-2); }

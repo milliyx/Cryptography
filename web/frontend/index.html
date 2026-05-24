@@ -48,6 +48,51 @@
           <tbody id="identities-rows"></tbody>
         </table>
       </div>
+
+      <div id="identity-detail" class="panel detail hidden">
+        <div class="panel-head">
+          <h2>Detalle: <span id="detail-name"></span></h2>
+          <button id="detail-close">cerrar</button>
+        </div>
+
+        <div class="detail-rows">
+          <div class="detail-row">
+            <span class="detail-label">Estado</span>
+            <span class="detail-value" id="detail-status"></span>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">X25519 pub <span class="muted">(usar al cifrar para esta identidad)</span></span>
+            <div class="copy-box">
+              <code id="detail-x-pub"></code>
+              <button data-copy="detail-x-pub">copiar</button>
+            </div>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">Ed25519 pub <span class="muted">(usar al verificar firma)</span></span>
+            <div class="copy-box">
+              <code id="detail-ed-pub"></code>
+              <button data-copy="detail-ed-pub">copiar</button>
+            </div>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">X25519 fingerprint <span class="muted">(solo identificacion)</span></span>
+            <code class="detail-value mono-block" id="detail-x-fp"></code>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">Ed25519 fingerprint <span class="muted">(solo identificacion)</span></span>
+            <code class="detail-value mono-block" id="detail-ed-fp"></code>
+          </div>
+
+          <div class="detail-row hidden" id="detail-expires-row">
+            <span class="detail-label">Expira</span>
+            <span class="detail-value" id="detail-expires"></span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Cifrar y firmar --------------------------------------------------- -->
