@@ -57,6 +57,86 @@ function showMsg(el, text, kind = "info") {
   el.className = "msg " + kind;
 }
 
+// Toast notifications — reemplazan los alert() nativos del navegador.
+function toast(text, kind = "info", ms = 4000) {
+  const root = document.getElementById("toasts");
+  if (!root) return;
+  const el = document.createElement("div");
+  el.className = `toast toast-${kind}`;
+  el.textContent = text;
+  const dismiss = () => {
+    el.classList.add("toast-out");
+    setTimeout(() => el.remove(), 200);
+  };
+  el.addEventListener("click", dismiss);
+  root.appendChild(el);
+  if (ms > 0) setTimeout(dismiss, ms);
+}
+
+// Modal generico tipo prompt() del navegador, pero con HTML/CSS.
+// Retorna una Promise: resuelve con el valor del input (o "" si no hay input
+// y el usuario confirmo), o null si cancelo.
+function askPrompt({
+  title,
+  message      = "",
+  input        = null,         // null = solo confirmacion, sin input
+  okText       = "OK",
+  cancelText   = "Cancelar",
+}) {
+  return new Promise((resolve) => {
+    const modal       = document.getElementById("modal-prompt");
+    const form        = document.getElementById("form-prompt");
+    const inputEl     = document.getElementById("prompt-input");
+    const labelWrap   = document.getElementById("prompt-label");
+    const inputLabel  = document.getElementById("prompt-input-label");
+    const titleEl     = document.getElementById("prompt-title");
+    const msgEl       = document.getElementById("prompt-message");
+    const errEl       = document.getElementById("prompt-error");
+    const okBtn       = document.getElementById("prompt-ok");
+    const cancelBtn   = document.getElementById("prompt-cancel");
+
+    titleEl.textContent = title;
+    msgEl.textContent   = message;
+    msgEl.classList.toggle("hidden", !message);
+    okBtn.textContent     = okText;
+    cancelBtn.textContent = cancelText;
+    errEl.textContent     = "";
+
+    if (input) {
+      labelWrap.classList.remove("hidden");
+      inputLabel.textContent = input.label || "";
+      inputEl.type           = input.type || "text";
+      inputEl.placeholder    = input.placeholder || "";
+      inputEl.required       = input.required !== false;
+      inputEl.value          = input.value || "";
+    } else {
+      labelWrap.classList.add("hidden");
+      inputEl.required = false;
+    }
+
+    function cleanup() {
+      form.removeEventListener("submit", onSubmit);
+      cancelBtn.removeEventListener("click", onCancel);
+      modal.removeEventListener("close", onClose);
+      modal.close();
+    }
+    function onSubmit(ev) {
+      ev.preventDefault();
+      cleanup();
+      resolve(input ? inputEl.value : "");
+    }
+    function onCancel() { cleanup(); resolve(null); }
+    function onClose()  { cleanup(); resolve(null); }
+
+    form.addEventListener("submit", onSubmit);
+    cancelBtn.addEventListener("click", onCancel);
+    modal.addEventListener("close",   onClose);
+
+    modal.showModal();
+    if (input) setTimeout(() => inputEl.focus(), 30);
+  });
+}
+
 function downloadBytes(filename, bytes, mime = "application/octet-stream") {
   const blob = new Blob([bytes], { type: mime });
   const url  = URL.createObjectURL(blob);
@@ -233,29 +313,41 @@ idRows.addEventListener("click", async (ev) => {
       const info = await callPy("get_public_info", [name]);
       showIdentityDetail(info);
     } catch (err) {
-      alert("Error: " + (formatError(err)));
+      toast(formatError(err), "error");
     }
   }
   else if (act === "revoke") {
-    const reason = prompt(`Revocar "${name}". Motivo (opcional):`);
+    const reason = await askPrompt({
+      title:   `Revocar "${name}"`,
+      message: "La identidad quedara marcada como revocada y no podra firmar ni descifrar.",
+      input: { label: "Motivo (opcional)", type: "text", required: false, placeholder: "ej: llave comprometida" },
+      okText: "Revocar",
+    });
     if (reason === null) return;
     try {
       await callPy("revoke_identity", [name, reason || ""]);
       await runtime.persistKeystore();
       await refreshIdentities();
+      toast(`Identidad "${name}" revocada.`, "info");
     } catch (err) {
-      alert("Error: " + (formatError(err)));
+      toast(formatError(err), "error");
     }
   }
   else if (act === "delete") {
-    const pwd = prompt(`Borrar "${name}" requiere el password de la identidad:`);
-    if (!pwd) return;
+    const pwd = await askPrompt({
+      title:   `Borrar "${name}"`,
+      message: "Esta accion es irreversible. Confirma con el password de la identidad.",
+      input: { label: "Password de la identidad", type: "password", required: true },
+      okText: "Borrar",
+    });
+    if (pwd === null || pwd === "") return;
     try {
       await callPy("delete_identity", [name, pwd]);
       await runtime.persistKeystore();
       await refreshIdentities();
+      toast(`Identidad "${name}" borrada.`, "info");
     } catch (err) {
-      alert("Error: " + (formatError(err)));
+      toast(formatError(err), "error");
     }
   }
 });
