@@ -173,6 +173,54 @@ function updateSelects(names) {
   }
 }
 
+// panel de detalle de identidad
+const detailPanel = $("#identity-detail");
+const detailClose = $("#detail-close");
+
+function showIdentityDetail(info) {
+  $("#detail-name").textContent  = info.name;
+  $("#detail-status").textContent = info.status;
+  $("#detail-x-pub").textContent  = info.x25519_pub_hex  || "(sin X25519)";
+  $("#detail-ed-pub").textContent = info.ed25519_pub_hex || "";
+  $("#detail-x-fp").textContent   = info.fingerprints.x25519  || "(sin X25519)";
+  $("#detail-ed-fp").textContent  = info.fingerprints.ed25519 || "";
+
+  const expRow = $("#detail-expires-row");
+  if (info.expires_at) {
+    $("#detail-expires").textContent = info.expires_at;
+    expRow.classList.remove("hidden");
+  } else {
+    expRow.classList.add("hidden");
+  }
+
+  detailPanel.classList.remove("hidden");
+  detailPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+detailClose.addEventListener("click", () => detailPanel.classList.add("hidden"));
+
+// botones "copiar" dentro del panel
+detailPanel.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button[data-copy]");
+  if (!btn) return;
+  const target = document.getElementById(btn.dataset.copy);
+  if (!target) return;
+  const text = target.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = "copiado";
+    setTimeout(() => { btn.textContent = orig; }, 1200);
+  } catch {
+    // fallback: seleccionar el texto
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+});
+
 // click handlers de las filas
 idRows.addEventListener("click", async (ev) => {
   const btn = ev.target.closest("button[data-act]");
@@ -183,15 +231,7 @@ idRows.addEventListener("click", async (ev) => {
   if (act === "info") {
     try {
       const info = await callPy("get_public_info", [name]);
-      alert([
-        `Identidad: ${info.name}`,
-        `Estado:    ${info.status}`,
-        `Ed25519 fp: ${info.fingerprints.ed25519}`,
-        info.fingerprints.x25519 ? `X25519  fp: ${info.fingerprints.x25519}` : null,
-        info.ed25519_pub_hex ? `\nEd25519 pub (raw hex):\n${info.ed25519_pub_hex}` : null,
-        info.x25519_pub_hex  ? `\nX25519  pub (raw hex):\n${info.x25519_pub_hex}`  : null,
-        info.expires_at ? `\nExpira: ${info.expires_at}` : null,
-      ].filter(Boolean).join("\n"));
+      showIdentityDetail(info);
     } catch (err) {
       alert("Error: " + (formatError(err)));
     }
