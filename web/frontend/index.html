@@ -184,6 +184,26 @@
     </section>
   </main>
 
+  <!-- Toasts -------------------------------------------------------------- -->
+  <div id="toasts" aria-live="polite"></div>
+
+  <!-- Modal generico para pedir un input o confirmar ---------------------- -->
+  <dialog id="modal-prompt">
+    <form id="form-prompt">
+      <h2 id="prompt-title"></h2>
+      <p id="prompt-message" class="muted"></p>
+      <label id="prompt-label" class="hidden">
+        <span id="prompt-input-label"></span>
+        <input type="text" id="prompt-input">
+      </label>
+      <p id="prompt-error" class="msg error"></p>
+      <div class="row">
+        <button type="button" id="prompt-cancel">Cancelar</button>
+        <button type="submit" class="primary" id="prompt-ok">OK</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Modal: nueva identidad --------------------------------------------- -->
   <dialog id="modal-new-identity">
     <form method="dialog" id="form-new-identity">
