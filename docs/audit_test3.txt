@@ -1,0 +1,62 @@
+==============================================================================
+  TEST 3: Modificacion de NONCE (DEM nonce de 96 bits)
+==============================================================================
+
+  --- FASE 1 — GENERACION DE CONTENEDOR LIMPIO ---
+  plaintext..................... b'Mensaje protegido por AES-256-GCM'
+  llave......................... d6a8bc0306e7d6434d1d33dc0e7e17c4e65f0fc679e6ea9c8851e5d64a26cb4e
+  contenedor bytes.............. 88
+  nonce offset.................. 23
+  nonce original................ 71e9580c4bfe5584886bda28
+
+  hex dump (contenedor SDDV original, 88 bytes total):
+  00000000  53 44 44 56 01 01 00 00  00 00 69 fa 53 08 00 07  |SDDV......i.S...|
+  00000010  64 6f 63 2e 74 78 74 71  e9 58 0c 4b fe 55 84 88  |doc.txtq.X.K.U..|
+  00000020  6b da 28 00 00 00 21 94  75 aa ef 01 df 87 32 34  |k.(...!.u.....24|
+  00000030  5c 96 4a 41 14 31 06 18  7d a0 ec 31 37 b2 da df  |\.JA.1..}..17...|
+  00000040  97 9e 33 7d 05 ad 4a 17  2e 1b d6 10 42 72 d2 df  |..3}..J.....Br..|
+  00000050  f8 89 fd 88 c6 71 f2 b1                            |.....q..|
+  (los bytes resaltados son los 12 bytes del nonce)
+
+  --- FASE 2 — APLICAR MODIFICACION AL NONCE ---
+
+  >> MODIFICACION en byte[23]:
+     antes:    0x71  (01110001)  'q'
+     despues:  0x8e  (10001110)  '.'
+     XOR:      0xff  (11111111)
+     descripcion: flip total (XOR 0xFF) del primer byte del nonce
+  nonce modificado.............. 8ee9580c4bfe5584886bda28
+
+  hex dump (contenedor SDDV ADULTERADO, 88 bytes total):
+  00000000  53 44 44 56 01 01 00 00  00 00 69 fa 53 08 00 07  |SDDV......i.S...|
+  00000010  64 6f 63 2e 74 78 74 8e  e9 58 0c 4b fe 55 84 88  |doc.txt..X.K.U..|
+  00000020  6b da 28 00 00 00 21 94  75 aa ef 01 df 87 32 34  |k.(...!.u.....24|
+  00000030  5c 96 4a 41 14 31 06 18  7d a0 ec 31 37 b2 da df  |\.JA.1..}..17...|
+  00000040  97 9e 33 7d 05 ad 4a 17  2e 1b d6 10 42 72 d2 df  |..3}..J.....Br..|
+  00000050  f8 89 fd 88 c6 71 f2 b1                            |.....q..|
+
+  --- FASE 3 — INTERPRETACION DEL ATAQUE ---
+  AES-GCM usa el nonce para derivar el counter J0 = nonce || 0x00000001.
+  el keystream es AES-CTR(K, J0+1, J0+2, ...) y el TAG = GHASH(H, AAD,
+  ciphertext) XOR AES_K(J0). modificar el nonce cambia ambos: keystream
+  Y tag. el descifrado no recupera plaintext y la verificacion falla.
+
+  --- INTENTO DE DESCIFRADO / VERIFICACION ---
+  llamada: decrypt_file(tampered_container, key)
+  ejecutando...
+
+  [EXCEPCION CAPTURADA]
+  tipo.......................... cryptography.exceptions.InvalidTag
+  mensaje....................... <vacio>
+
+  traceback completo:
+    Traceback (most recent call last):
+      File "/Users/emiliocontreras/Documents/10Semestre/Cripto/Proyecto/audit_tampering.py", line 125, in attempt_decrypt
+        result = fn()
+      File "/Users/emiliocontreras/Documents/10Semestre/Cripto/Proyecto/audit_tampering.py", line 305, in <lambda>
+        lambda: decrypt_file(bytes(tampered), key),
+      File "/Users/emiliocontreras/Documents/10Semestre/Cripto/Proyecto/crypto/aead.py", line 192, in decrypt_file
+        plaintext = cipher.decrypt(nonce, ciphertext + tag, header)
+    cryptography.exceptions.InvalidTag
+
+  [OK] sistema fail-closed: lanza excepcion antes de exponer plaintext
