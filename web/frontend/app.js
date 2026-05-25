@@ -6,14 +6,13 @@ import { initRuntime } from "./pyodide-runtime.js";
 const $  = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
 
-const bootEl     = $("#boot");
-const bootDetail = $("#boot-detail");
-const appEl      = $("#app");
-const toastsEl   = $("#toasts");
+const bootEl       = $("#boot");
+const bootDetail   = $("#boot-detail");
+const appEl        = $("#app");
 
 let runtime = null;     // se llena tras initRuntime
 
-// ─── utilidades ──────────────────────────────────────────────────────────
+// ── utilidades ───────────────────────────────────────────────────────────
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({
@@ -21,9 +20,121 @@ function escapeHtml(s) {
   }[c]));
 }
 
+// Convierte un error (idealmente un PythonError de Pyodide con traceback
+// completo) en un mensaje corto y legible. Mapea las excepciones tipicas
+// del proyecto a explicaciones en espanol.
+function formatError(err) {
+  if (!err) return "Error desconocido";
+  let msg = err.message || String(err);
+
+  // Pyodide trae el traceback completo en .message. Quedarnos solo con la
+  // ultima linea no vacia — tipicamente "ExcType: mensaje".
+  if (msg.includes("Traceback")) {
+    const lines = msg.split("\n").map(s => s.trim()).filter(Boolean);
+    msg = lines[lines.length - 1] || msg;
+  }
+
+  const friendly = {
+    "InvalidTag":                 "Password incorrecto o el archivo fue modificado.",
+    "InvalidSignature":           "La firma no corresponde al firmante esperado.",
+    "IdentityNotFoundError":      "Esa identidad no existe en tu keystore.",
+    "IdentityAlreadyExistsError": "Ya tienes una identidad con ese nombre.",
+    "IdentityRevokedError":       "Esta identidad fue revocada.",
+    "IdentityExpiredError":       "Esta identidad ya expiro.",
+  };
+  for (const [t, nice] of Object.entries(friendly)) {
+    if (msg.includes(t)) return nice;
+  }
+
+  // Quitar prefijos tipo "ValueError: " que no aportan al usuario.
+  const m = msg.match(/^[A-Z]\w*Error:\s*(.+)$/);
+  if (m) return m[1];
+  return msg;
+}
+
 function showMsg(el, text, kind = "info") {
   el.textContent = text;
   el.className = "msg " + kind;
+}
+
+// Toast notifications — reemplazan los alert() nativos del navegador.
+function toast(text, kind = "info", ms = 4000) {
+  const root = document.getElementById("toasts");
+  if (!root) return;
+  const el = document.createElement("div");
+  el.className = `toast toast-${kind}`;
+  el.textContent = text;
+  const dismiss = () => {
+    el.classList.add("toast-out");
+    setTimeout(() => el.remove(), 200);
+  };
+  el.addEventListener("click", dismiss);
+  root.appendChild(el);
+  if (ms > 0) setTimeout(dismiss, ms);
+}
+
+// Modal generico tipo prompt() del navegador, pero con HTML/CSS.
+// Retorna una Promise: resuelve con el valor del input (o "" si no hay input
+// y el usuario confirmo), o null si cancelo.
+function askPrompt({
+  title,
+  message      = "",
+  input        = null,         // null = solo confirmacion, sin input
+  okText       = "OK",
+  cancelText   = "Cancelar",
+}) {
+  return new Promise((resolve) => {
+    const modal       = document.getElementById("modal-prompt");
+    const form        = document.getElementById("form-prompt");
+    const inputEl     = document.getElementById("prompt-input");
+    const labelWrap   = document.getElementById("prompt-label");
+    const inputLabel  = document.getElementById("prompt-input-label");
+    const titleEl     = document.getElementById("prompt-title");
+    const msgEl       = document.getElementById("prompt-message");
+    const errEl       = document.getElementById("prompt-error");
+    const okBtn       = document.getElementById("prompt-ok");
+    const cancelBtn   = document.getElementById("prompt-cancel");
+
+    titleEl.textContent = title;
+    msgEl.textContent   = message;
+    msgEl.classList.toggle("hidden", !message);
+    okBtn.textContent     = okText;
+    cancelBtn.textContent = cancelText;
+    errEl.textContent     = "";
+
+    if (input) {
+      labelWrap.classList.remove("hidden");
+      inputLabel.textContent = input.label || "";
+      inputEl.type           = input.type || "text";
+      inputEl.placeholder    = input.placeholder || "";
+      inputEl.required       = input.required !== false;
+      inputEl.value          = input.value || "";
+    } else {
+      labelWrap.classList.add("hidden");
+      inputEl.required = false;
+    }
+
+    function cleanup() {
+      form.removeEventListener("submit", onSubmit);
+      cancelBtn.removeEventListener("click", onCancel);
+      modal.removeEventListener("close", onClose);
+      modal.close();
+    }
+    function onSubmit(ev) {
+      ev.preventDefault();
+      cleanup();
+      resolve(input ? inputEl.value : "");
+    }
+    function onCancel() { cleanup(); resolve(null); }
+    function onClose()  { cleanup(); resolve(null); }
+
+    form.addEventListener("submit", onSubmit);
+    cancelBtn.addEventListener("click", onCancel);
+    modal.addEventListener("close",   onClose);
+
+    modal.showModal();
+    if (input) setTimeout(() => inputEl.focus(), 30);
+  });
 }
 
 function downloadBytes(filename, bytes, mime = "application/octet-stream") {
@@ -38,42 +149,14 @@ function downloadBytes(filename, bytes, mime = "application/octet-stream") {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// ─── toasts ──────────────────────────────────────────────────────────────
-
-function toast(text, kind = "info", duration = 3500) {
-  const t = document.createElement("div");
-  t.className = `toast ${kind}`;
-  t.textContent = text;
-  toastsEl.appendChild(t);
-  // forzar reflow para que la transicion arranque
-  requestAnimationFrame(() => t.classList.add("show"));
-  setTimeout(() => {
-    t.classList.remove("show");
-    setTimeout(() => t.remove(), 250);
-  }, duration);
-}
-
-// Sanitiza un mensaje de error de Pyodide para mostrar al usuario.
-// Quita stack traces enormes y deja solo la primera linea util.
-function friendlyError(err) {
-  const raw = err?.message || String(err);
-  // Pyodide envuelve excepciones Python; busca la ultima linea no vacia
-  const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
-  // Tipico "ValueError: bla" o "InvalidTag" como ultima linea
-  const last = lines[lines.length - 1] || raw;
-  // Limita longitud
-  return last.length > 200 ? last.slice(0, 200) + "..." : last;
-}
-
-// ─── loading state ───────────────────────────────────────────────────────
-
-// Envuelve una operacion async: deshabilita el boton y muestra spinner
-// mientras dura. Se garantiza re-habilitar aunque falle.
+// Envuelve una operacion async con loading state en un boton.
+// Util para operaciones bloqueantes (scrypt ~150ms). Restaura el boton
+// aunque falle la operacion.
 async function withLoading(btn, asyncFn) {
   const original = btn.innerHTML;
   btn.disabled = true;
   btn.classList.add("loading");
-  btn.innerHTML = `<span class="btn-spinner"></span> ${original}`;
+  btn.innerHTML = `<span class="btn-spinner"></span>${original}`;
   try {
     return await asyncFn();
   } finally {
@@ -83,8 +166,7 @@ async function withLoading(btn, asyncFn) {
   }
 }
 
-// ─── bridge JS -> Python ─────────────────────────────────────────────────
-
+// Convierte el resultado de pyodide.runPython (PyProxy o tipo nativo) a JS.
 function pyToJs(val) {
   if (val && typeof val.toJs === "function") {
     const out = val.toJs({ dict_converter: Object.fromEntries });
@@ -94,8 +176,11 @@ function pyToJs(val) {
   return val;
 }
 
+// Llama a una funcion de sddv_api pasando argumentos por posicion.
+// Convierte cada argumento JS al equivalente Python adecuado.
 async function callPy(funcName, args = []) {
   const { pyodide } = runtime;
+  // Subimos los argumentos al namespace global de Python
   const argNames = [];
   for (let i = 0; i < args.length; i++) {
     const n = `__arg_${i}`;
@@ -111,52 +196,7 @@ async function callPy(funcName, args = []) {
   }
 }
 
-// ─── modales custom ──────────────────────────────────────────────────────
-
-// Abre un modal nativo <dialog> y retorna una promesa que resuelve con
-// el FormData del submit, o null si se cancela.
-function openModal(modalId, { reset = true, onShow = null } = {}) {
-  return new Promise((resolve) => {
-    const dlg  = $(`#${modalId}`);
-    const form = dlg.querySelector("form");
-    const err  = dlg.querySelector(".modal-err");
-    if (reset && form) form.reset();
-    if (err) err.textContent = "";
-
-    const cleanup = () => {
-      form.removeEventListener("submit", onSubmit);
-      dlg.removeEventListener("close",  onCancel);
-      dlg.removeEventListener("cancel", onCancel);
-      cancelBtn?.removeEventListener("click", onCancelClick);
-    };
-    const onSubmit = (ev) => {
-      ev.preventDefault();
-      const fd = new FormData(form);
-      // Validacion custom: passwords coinciden si hay password2
-      const p1 = fd.get("password");
-      const p2 = fd.get("password2");
-      if (p1 && p2 && p1 !== p2) {
-        if (err) err.textContent = "Los passwords no coinciden";
-        return;
-      }
-      cleanup();
-      dlg.close();
-      resolve(fd);
-    };
-    const onCancel = () => { cleanup(); resolve(null); };
-    const cancelBtn = dlg.querySelector(".modal-cancel");
-    const onCancelClick = (ev) => { ev.preventDefault(); dlg.close(); onCancel(); };
-
-    form.addEventListener("submit", onSubmit);
-    dlg.addEventListener("cancel", onCancel);
-    cancelBtn?.addEventListener("click", onCancelClick);
-
-    if (onShow) onShow(dlg);
-    dlg.showModal();
-  });
-}
-
-// ─── navegacion entre vistas ─────────────────────────────────────────────
+// ── navegacion entre vistas ──────────────────────────────────────────────
 
 function switchView(name) {
   $$(".tab").forEach(t => t.classList.toggle("active", t.dataset.view === name));
@@ -165,11 +205,11 @@ function switchView(name) {
 
 $$(".tab").forEach(t => t.addEventListener("click", () => switchView(t.dataset.view)));
 
-// ─── identidades ─────────────────────────────────────────────────────────
+// ── identidades ──────────────────────────────────────────────────────────
 
-const idEmpty = $("#identities-empty");
-const idTable = $("#identities-table");
-const idRows  = $("#identities-rows");
+const idEmpty   = $("#identities-empty");
+const idTable   = $("#identities-table");
+const idRows    = $("#identities-rows");
 
 async function refreshIdentities() {
   idEmpty.classList.add("hidden");
@@ -193,15 +233,15 @@ async function refreshIdentities() {
       <td><span class="badge ${escapeHtml(it.status)}">${escapeHtml(it.status)}</span></td>
       <td class="mono fp-cell" title="${escapeHtml(fp)}">
         ${escapeHtml(fpShort)}
-        <button class="copy-btn" data-act="copy" data-fp="${escapeHtml(fp)}" title="Copiar fingerprint completo">⧉</button>
+        <button class="copy-btn" data-act="copy-fp" data-fp="${escapeHtml(fp)}" title="Copiar fingerprint completo">⧉</button>
       </td>
       <td class="muted">${escapeHtml((it.created_at || "").slice(0, 19).replace("T", " "))}</td>
       <td class="actions">
-        <button data-act="info"     data-name="${escapeHtml(it.name)}">ver</button>
-        <button data-act="rotate"   data-name="${escapeHtml(it.name)}">rotar</button>
-        <button data-act="chpwd"    data-name="${escapeHtml(it.name)}">password</button>
-        <button data-act="revoke"   data-name="${escapeHtml(it.name)}">revocar</button>
-        <button data-act="delete"   data-name="${escapeHtml(it.name)}">borrar</button>
+        <button data-act="info"   data-name="${escapeHtml(it.name)}">ver</button>
+        <button data-act="rotate" data-name="${escapeHtml(it.name)}">rotar</button>
+        <button data-act="chpwd"  data-name="${escapeHtml(it.name)}">password</button>
+        <button data-act="revoke" data-name="${escapeHtml(it.name)}">revocar</button>
+        <button data-act="delete" data-name="${escapeHtml(it.name)}">borrar</button>
       </td>
     `;
     idRows.appendChild(tr);
@@ -210,11 +250,23 @@ async function refreshIdentities() {
   updateSelects(items.map(x => x.name));
 }
 
+// llena los <select> de las otras vistas con los nombres disponibles
 function updateSelects(names) {
   const targets = $$('select[name="signer"], select[name="recipient"], select[name="name"]');
   for (const sel of targets) {
     const prev = sel.value;
     sel.innerHTML = "";
+    if (names.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "— Sin identidades. Crea una en la pestana Identidades —";
+      opt.disabled = true;
+      opt.selected = true;
+      sel.appendChild(opt);
+      sel.disabled = true;
+      continue;
+    }
+    sel.disabled = false;
     for (const n of names) {
       const opt = document.createElement("option");
       opt.value = n; opt.textContent = n;
@@ -224,21 +276,69 @@ function updateSelects(names) {
   }
 }
 
-// ─── handlers de acciones sobre identidades ──────────────────────────────
+// panel de detalle de identidad
+const detailPanel = $("#identity-detail");
+const detailClose = $("#detail-close");
 
+function showIdentityDetail(info) {
+  $("#detail-name").textContent  = info.name;
+  $("#detail-status").textContent = info.status;
+  $("#detail-x-pub").textContent  = info.x25519_pub_hex  || "(sin X25519)";
+  $("#detail-ed-pub").textContent = info.ed25519_pub_hex || "";
+  $("#detail-x-fp").textContent   = info.fingerprints.x25519  || "(sin X25519)";
+  $("#detail-ed-fp").textContent  = info.fingerprints.ed25519 || "";
+
+  const expRow = $("#detail-expires-row");
+  if (info.expires_at) {
+    $("#detail-expires").textContent = info.expires_at;
+    expRow.classList.remove("hidden");
+  } else {
+    expRow.classList.add("hidden");
+  }
+
+  detailPanel.classList.remove("hidden");
+  detailPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+detailClose.addEventListener("click", () => detailPanel.classList.add("hidden"));
+
+// botones "copiar" dentro del panel
+detailPanel.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button[data-copy]");
+  if (!btn) return;
+  const target = document.getElementById(btn.dataset.copy);
+  if (!target) return;
+  const text = target.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = "copiado";
+    setTimeout(() => { btn.textContent = orig; }, 1200);
+  } catch {
+    // fallback: seleccionar el texto
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+});
+
+// click handlers de las filas
 idRows.addEventListener("click", async (ev) => {
   const btn = ev.target.closest("button[data-act]");
   if (!btn) return;
   const name = btn.dataset.name;
   const act  = btn.dataset.act;
 
-  if (act === "copy") {
+  // Copiar fingerprint completo al portapapeles
+  if (act === "copy-fp") {
     const fp = btn.dataset.fp;
     try {
       await navigator.clipboard.writeText(fp);
       toast("Fingerprint copiado al portapapeles", "info", 2000);
     } catch (err) {
-      toast("No se pudo copiar: " + friendlyError(err), "error");
+      toast("No se pudo copiar: " + formatError(err), "error");
     }
     return;
   }
@@ -246,102 +346,101 @@ idRows.addEventListener("click", async (ev) => {
   if (act === "info") {
     try {
       const info = await callPy("get_public_info", [name]);
-      // Llena el modal de info en vez de alert()
-      $("#info-title").textContent = `Identidad: ${info.name}`;
-      $("#info-body").innerHTML = `
-        <dl class="info-list">
-          <dt>Estado</dt>          <dd><span class="badge ${escapeHtml(info.status)}">${escapeHtml(info.status)}</span></dd>
-          <dt>Ed25519 fp</dt>      <dd class="mono break">${escapeHtml(info.fingerprints.ed25519)}</dd>
-          ${info.fingerprints.x25519 ? `
-          <dt>X25519 fp</dt>       <dd class="mono break">${escapeHtml(info.fingerprints.x25519)}</dd>
-          ` : ""}
-          ${info.ed25519_pub_hex ? `
-          <dt>Ed25519 pub (raw hex)</dt>
-          <dd class="mono break">${escapeHtml(info.ed25519_pub_hex)}</dd>
-          ` : ""}
-          ${info.x25519_pub_hex ? `
-          <dt>X25519 pub (raw hex)</dt>
-          <dd class="mono break">${escapeHtml(info.x25519_pub_hex)}</dd>
-          ` : ""}
-          ${info.expires_at ? `
-          <dt>Expira</dt> <dd>${escapeHtml(info.expires_at)}</dd>
-          ` : ""}
-        </dl>
-      `;
-      $("#modal-info").showModal();
+      showIdentityDetail(info);
     } catch (err) {
-      toast(friendlyError(err), "error");
+      toast(formatError(err), "error");
     }
   }
   else if (act === "rotate") {
-    const fd = await openModal("modal-rotate", {
-      onShow: () => $("#rotate-name").textContent = name
+    const pwd = await askPrompt({
+      title:   `Rotar "${name}"`,
+      message: "Genera un nuevo par de llaves. La identidad anterior se archiva con sufijo .rotated-<timestamp>.",
+      input: { label: "Password de la identidad", type: "password", required: true },
+      okText: "Rotar",
     });
-    if (!fd) return;
+    if (pwd === null || pwd === "") return;
     await withLoading(btn, async () => {
       try {
-        const result = await callPy("rotate_identity", [name, fd.get("password")]);
+        const result = await callPy("rotate_identity", [name, pwd]);
         await runtime.persistKeystore();
         await refreshIdentities();
-        toast(`"${name}" rotada. Nuevo fp: ${(result.ed25519_fp || "").slice(0,12)}...`, "info");
+        const newFp = (result.ed25519_fp || "").slice(0, 12);
+        toast(`"${name}" rotada. Nuevo fp: ${newFp}...`, "info");
       } catch (err) {
-        toast(friendlyError(err), "error");
+        toast(formatError(err), "error");
       }
     });
   }
   else if (act === "chpwd") {
-    const fd = await openModal("modal-chpwd", {
-      onShow: () => $("#chpwd-name").textContent = name
+    const oldPwd = await askPrompt({
+      title:   `Cambiar password de "${name}"`,
+      message: "Paso 1 de 2: confirma con el password actual.",
+      input: { label: "Password actual", type: "password", required: true },
+      okText: "Siguiente",
     });
-    if (!fd) return;
+    if (oldPwd === null || oldPwd === "") return;
+    const newPwd = await askPrompt({
+      title:   `Cambiar password de "${name}"`,
+      message: "Paso 2 de 2: nuevo password (minimo 12 caracteres).",
+      input: { label: "Password nuevo", type: "password", required: true },
+      okText: "Cambiar",
+    });
+    if (newPwd === null || newPwd === "") return;
+    if (newPwd.length < 12) {
+      toast("El password nuevo debe tener al menos 12 caracteres", "error");
+      return;
+    }
     await withLoading(btn, async () => {
       try {
-        await callPy("change_password",
-          [name, fd.get("old_password"), fd.get("password")]);
+        await callPy("change_password", [name, oldPwd, newPwd]);
         await runtime.persistKeystore();
         toast(`Password de "${name}" actualizado`, "info");
       } catch (err) {
-        toast(friendlyError(err), "error");
+        toast(formatError(err), "error");
       }
     });
   }
   else if (act === "revoke") {
-    const fd = await openModal("modal-revoke", {
-      onShow: () => $("#revoke-name").textContent = name
+    const reason = await askPrompt({
+      title:   `Revocar "${name}"`,
+      message: "La identidad quedara marcada como revocada y no podra firmar ni descifrar.",
+      input: { label: "Motivo (opcional)", type: "text", required: false, placeholder: "ej: llave comprometida" },
+      okText: "Revocar",
     });
-    if (!fd) return;
+    if (reason === null) return;
     try {
-      await callPy("revoke_identity", [name, fd.get("reason") || ""]);
+      await callPy("revoke_identity", [name, reason || ""]);
       await runtime.persistKeystore();
       await refreshIdentities();
-      toast(`"${name}" revocada`, "info");
+      toast(`Identidad "${name}" revocada.`, "info");
     } catch (err) {
-      toast(friendlyError(err), "error");
+      toast(formatError(err), "error");
     }
   }
   else if (act === "delete") {
-    const fd = await openModal("modal-delete", {
-      onShow: () => $("#delete-name").textContent = name
+    const pwd = await askPrompt({
+      title:   `Borrar "${name}"`,
+      message: "Esta accion es irreversible. Confirma con el password de la identidad.",
+      input: { label: "Password de la identidad", type: "password", required: true },
+      okText: "Borrar",
     });
-    if (!fd) return;
-    await withLoading(btn, async () => {
-      try {
-        await callPy("delete_identity", [name, fd.get("password")]);
-        await runtime.persistKeystore();
-        await refreshIdentities();
-        toast(`"${name}" eliminada`, "info");
-      } catch (err) {
-        toast(friendlyError(err), "error");
-      }
-    });
+    if (pwd === null || pwd === "") return;
+    try {
+      await callPy("delete_identity", [name, pwd]);
+      await runtime.persistKeystore();
+      await refreshIdentities();
+      toast(`Identidad "${name}" borrada.`, "info");
+    } catch (err) {
+      toast(formatError(err), "error");
+    }
   }
 });
 
-// ─── modal: nueva identidad ──────────────────────────────────────────────
+// ── modal: nueva identidad ───────────────────────────────────────────────
 
-const modal   = $("#modal-new-identity");
-const formNew = $("#form-new-identity");
-const newErr  = $("#new-identity-err");
+const modal     = $("#modal-new-identity");
+const formNew   = $("#form-new-identity");
+const newErr    = $("#new-identity-err");
 
 $("#btn-new-identity").addEventListener("click", () => {
   formNew.reset();
@@ -361,32 +460,21 @@ formNew.addEventListener("submit", async (ev) => {
   const comment = (fd.get("comment") || "").trim();
   if (p1 !== p2) { newErr.textContent = "Los passwords no coinciden"; return; }
 
-  const submitBtn = formNew.querySelector('button[type="submit"]');
-  await withLoading(submitBtn, async () => {
-    try {
-      await callPy("create_identity", [name, p1, comment]);
-      await runtime.persistKeystore();
-      modal.close();
-      await refreshIdentities();
-      toast(`Identidad "${name}" creada`, "info");
-    } catch (err) {
-      newErr.textContent = friendlyError(err);
-    }
-  });
+  try {
+    await callPy("create_identity", [name, p1, comment]);
+    await runtime.persistKeystore();
+    modal.close();
+    await refreshIdentities();
+  } catch (err) {
+    newErr.textContent = formatError(err);
+  }
 });
 
-// cerrar modal-info al hacer click en el boton
-$("#info-close")?.addEventListener("click", (ev) => {
-  ev.preventDefault();
-  $("#modal-info").close();
-});
-
-// ─── cifrar + firmar ─────────────────────────────────────────────────────
+// ── cifrar + firmar ──────────────────────────────────────────────────────
 
 $("#form-send").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const out = $("#send-result");
-  const submitBtn = ev.currentTarget.querySelector('button[type="submit"]');
   showMsg(out, "Cifrando...", "info");
   const fd = new FormData(ev.currentTarget);
   const file   = fd.get("file");
@@ -398,28 +486,23 @@ $("#form-send").addEventListener("submit", async (ev) => {
   if (recipients.length === 0) { showMsg(out, "Sin destinatarios", "error"); return; }
   if (!file || file.size === 0) { showMsg(out, "Archivo vacio", "error"); return; }
 
-  await withLoading(submitBtn, async () => {
-    try {
-      const buf = new Uint8Array(await file.arrayBuffer());
-      const container = await callPy("encrypt_and_sign",
-        [signer, pwd, recipients, buf, file.name]);
-      const bytes = container instanceof Uint8Array ? container : new Uint8Array(container);
-      downloadBytes(file.name + ".sddh", bytes);
-      showMsg(out, `Listo. Descargando ${file.name}.sddh (${bytes.byteLength} bytes).`, "info");
-      toast("Archivo cifrado y firmado", "info");
-    } catch (err) {
-      showMsg(out, friendlyError(err), "error");
-      toast(friendlyError(err), "error");
-    }
-  });
+  try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const container = await callPy("encrypt_and_sign",
+      [signer, pwd, recipients, buf, file.name]);
+    const bytes = container instanceof Uint8Array ? container : new Uint8Array(container);
+    downloadBytes(file.name + ".sddh", bytes);
+    showMsg(out, `Listo. Descargando ${file.name}.sddh (${bytes.byteLength} bytes).`, "info");
+  } catch (err) {
+    showMsg(out, "Error: " + (formatError(err)), "error");
+  }
 });
 
-// ─── verificar + descifrar ───────────────────────────────────────────────
+// ── verificar + descifrar ────────────────────────────────────────────────
 
 $("#form-recv").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const out = $("#recv-result");
-  const submitBtn = ev.currentTarget.querySelector('button[type="submit"]');
   showMsg(out, "Verificando y descifrando...", "info");
   const fd = new FormData(ev.currentTarget);
   const file = fd.get("container");
@@ -429,85 +512,96 @@ $("#form-recv").addEventListener("submit", async (ev) => {
 
   if (!file || file.size === 0) { showMsg(out, "Archivo vacio", "error"); return; }
 
-  await withLoading(submitBtn, async () => {
-    try {
-      const buf = new Uint8Array(await file.arrayBuffer());
-      const res = await callPy("verify_and_decrypt", [recipient, pwd, buf, signerFp]);
-      const plaintext = res.plaintext instanceof Uint8Array
-        ? res.plaintext
-        : new Uint8Array(res.plaintext);
-      const meta = res.metadata || {};
-      const outName = meta.filename || "descifrado.bin";
-      downloadBytes(outName, plaintext);
-      showMsg(out,
-        `Firma valida. Descargando ${outName} (${plaintext.byteLength} bytes).`,
-        "info");
-      toast("Firma valida — archivo descifrado", "info");
-    } catch (err) {
-      showMsg(out, friendlyError(err), "error");
-      toast(friendlyError(err), "error");
-    }
-  });
+  try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const res = await callPy("verify_and_decrypt", [recipient, pwd, buf, signerFp]);
+    const plaintext = res.plaintext instanceof Uint8Array
+      ? res.plaintext
+      : new Uint8Array(res.plaintext);
+    const meta = res.metadata || {};
+    const outName = meta.filename || "descifrado.bin";
+    downloadBytes(outName, plaintext);
+    showMsg(out,
+      `Firma valida. Descargando ${outName} (${plaintext.byteLength} bytes).`,
+      "info");
+  } catch (err) {
+    showMsg(out, "Error: " + (formatError(err)), "error");
+  }
 });
 
-// ─── backup ──────────────────────────────────────────────────────────────
+// ── backup ───────────────────────────────────────────────────────────────
 
 $("#form-backup").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const out = $("#backup-result");
-  const submitBtn = ev.currentTarget.querySelector('button[type="submit"]');
   showMsg(out, "Generando backup...", "info");
   const fd = new FormData(ev.currentTarget);
   const name = fd.get("name");
-  await withLoading(submitBtn, async () => {
-    try {
-      const json = await callPy("backup_export",
-        [name, fd.get("active_pwd"), fd.get("backup_pwd")]);
-      downloadBytes(`${name}.sddv_backup`, new TextEncoder().encode(json), "application/json");
-      showMsg(out, `Backup descargado: ${name}.sddv_backup`, "info");
-      toast("Backup generado", "info");
-    } catch (err) {
-      showMsg(out, friendlyError(err), "error");
-      toast(friendlyError(err), "error");
-    }
-  });
+  try {
+    const json = await callPy("backup_export",
+      [name, fd.get("active_pwd"), fd.get("backup_pwd")]);
+    downloadBytes(`${name}.sddv_backup`, new TextEncoder().encode(json), "application/json");
+    showMsg(out, `Backup descargado: ${name}.sddv_backup`, "info");
+  } catch (err) {
+    showMsg(out, "Error: " + (formatError(err)), "error");
+  }
 });
 
 $("#form-restore").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const out = $("#restore-result");
-  const submitBtn = ev.currentTarget.querySelector('button[type="submit"]');
   showMsg(out, "Restaurando...", "info");
   const fd = new FormData(ev.currentTarget);
   const file = fd.get("file");
   if (!file || file.size === 0) { showMsg(out, "Archivo vacio", "error"); return; }
-  await withLoading(submitBtn, async () => {
-    try {
-      const text = await file.text();
-      const asName = (fd.get("as_name") || "").trim() || null;
-      const info = await callPy("backup_import",
-        [text, fd.get("backup_pwd"), fd.get("new_pwd"), asName]);
-      await runtime.persistKeystore();
-      await refreshIdentities();
-      showMsg(out, `Restaurada como "${info.name}".`, "info");
-      toast(`"${info.name}" restaurada`, "info");
-    } catch (err) {
-      showMsg(out, friendlyError(err), "error");
-      toast(friendlyError(err), "error");
-    }
-  });
+  try {
+    const text = await file.text();
+    const asName = (fd.get("as_name") || "").trim() || null;
+    const info = await callPy("backup_import",
+      [text, fd.get("backup_pwd"), fd.get("new_pwd"), asName]);
+    await runtime.persistKeystore();
+    await refreshIdentities();
+    showMsg(out, `Restaurada como "${info.name}".`, "info");
+  } catch (err) {
+    showMsg(out, "Error: " + (formatError(err)), "error");
+  }
 });
 
-// ─── bootstrap ───────────────────────────────────────────────────────────
+// ── bootstrap ────────────────────────────────────────────────────────────
+
+// iOS Safari / Chrome (mismo motor) limita la memoria WebAssembly por pestana
+// alrededor de 400 MB, lo que rompe la inicializacion de Pyodide en iPhone.
+// Mostramos un aviso en vez de colgar la pagina silenciosamente.
+function isIPhone() {
+  return /iPhone|iPod/.test(navigator.userAgent || "");
+}
+
+function showIPhoneWarning() {
+  const title  = document.getElementById("boot-title");
+  const detail = document.getElementById("boot-detail");
+  title.textContent = "iPhone no soportado";
+  detail.innerHTML =
+    "Esta app ejecuta Python (~10 MB de WebAssembly) en tu navegador para que " +
+    "las llaves privadas nunca salgan de tu equipo. " +
+    "iOS limita la memoria por pestana y cuelga la pagina durante la carga.<br><br>" +
+    "Abrelo desde una computadora o un dispositivo Android.<br><br>" +
+    '<a href="https://github.com/sergiocaballeroo/Cryptography" style="color:inherit;text-decoration:underline">' +
+    "Repositorio en GitHub</a>";
+  detail.classList.remove("error");
+}
 
 (async () => {
+  if (isIPhone()) {
+    showIPhoneWarning();
+    return;
+  }
   try {
     runtime = await initRuntime((msg) => { bootDetail.textContent = msg; });
     bootEl.classList.add("hidden");
     appEl.classList.remove("hidden");
     await refreshIdentities();
   } catch (err) {
-    bootDetail.textContent = "Error: " + (err.message || err);
+    bootDetail.textContent = "Error: " + (formatError(err));
     bootDetail.classList.add("error");
     console.error(err);
   }

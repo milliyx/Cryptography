@@ -186,23 +186,86 @@ dialog code {
   color: var(--muted-2);
 }
 
-/* Info list dentro del modal info -------------------------------------- */
-.info-list {
-  display: grid; grid-template-columns: max-content 1fr;
-  gap: 6px 16px; margin: 0;
-  font-size: 13px;
+/* Panel de detalle de identidad (de origin/main) ----------------------- */
+.detail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
-.info-list dt { color: var(--muted); font-size: 11px; padding-top: 2px; }
-.info-list dd { margin: 0; }
-.info-list .break { word-break: break-all; line-height: 1.45; }
+.detail-row { display: flex; flex-direction: column; gap: 6px; }
+.detail-label { font-size: 12px; color: var(--muted); }
+.detail-label .muted { font-size: 11px; }
+.detail-value { font-size: 13px; }
+.copy-box { display: flex; gap: 6px; align-items: stretch; }
+.copy-box code {
+  flex: 1;
+  padding: 8px 10px;
+  background: #14141a;
+  border: 1px solid var(--hairline-2);
+  border-radius: 4px;
+  font: 12px ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+}
+.copy-box button { flex-shrink: 0; padding: 6px 10px; font-size: 12px; }
+.mono-block {
+  display: block;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font: 12px ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  color: var(--muted-2);
+  word-break: break-all;
+  user-select: all;
+}
+.panel.detail h2 { font-size: 14px; }
+.panel.detail h2 span { font-weight: 500; color: var(--muted-2); }
 
-/* Modal danger button (rojo coral) ------------------------------------- */
+/* Toasts (sistema de origin/main: clases .toast-info, .toast-error) ---- */
+#toasts {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+  max-width: 380px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  padding: 10px 14px;
+  background: #14141a;
+  border: 1px solid var(--hairline-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  animation: toast-in 0.18s ease-out;
+  cursor: pointer;
+}
+.toast-error { border-left-color: var(--error); }
+.toast-info  { border-left-color: var(--accent); }
+.toast-warn  { border-left-color: var(--warn); }
+.toast-out   { opacity: 0; transform: translateX(20px); transition: 0.18s ease; }
+@keyframes toast-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+
+/* Adiciones de feature/d6-key-management ------------------------------- */
+
+/* Botón "danger" para acciones destructivas (delete) */
 button.danger {
   background: var(--error); border-color: var(--error); color: var(--bg);
 }
 button.danger:hover { filter: brightness(1.05); border-color: var(--error); }
 
-/* Copy fingerprint button (en celdas .fp-cell) ------------------------- */
+/* Botón pequeño "copiar fingerprint" en celdas de la tabla */
 .fp-cell { display: flex; align-items: center; gap: 6px; }
 .copy-btn {
   padding: 1px 6px; font-size: 11px;
@@ -211,7 +274,7 @@ button.danger:hover { filter: brightness(1.05); border-color: var(--error); }
 }
 .copy-btn:hover { opacity: 1; border-color: var(--hairline-2); }
 
-/* Spinner en botones durante operaciones -------------------------------- */
+/* Spinner para botones durante operaciones largas (scrypt ~150ms) */
 .btn-spinner {
   display: inline-block;
   width: 10px; height: 10px;
@@ -224,26 +287,3 @@ button.danger:hover { filter: brightness(1.05); border-color: var(--error); }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 button.loading { cursor: progress; }
-
-/* Toasts ---------------------------------------------------------------- */
-.toasts {
-  position: fixed; right: 24px; bottom: 24px;
-  display: flex; flex-direction: column; gap: 8px;
-  z-index: 9999; pointer-events: none;
-  max-width: 360px;
-}
-.toast {
-  background: #14141a; color: var(--text);
-  border: 1px solid var(--hairline-2);
-  border-left: 3px solid var(--muted-2);
-  border-radius: 4px; padding: 10px 14px;
-  font-size: 13px;
-  opacity: 0; transform: translateY(8px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  pointer-events: auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-.toast.show { opacity: 1; transform: translateY(0); }
-.toast.info  { border-left-color: var(--accent); }
-.toast.error { border-left-color: var(--error); }
-.toast.warn  { border-left-color: var(--warn); }
