@@ -1,0 +1,153 @@
+\usepackage{fontspec}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc, shadows.blur}
+\usepackage{booktabs}
+\usepackage{textcomp}
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{skins, breakable}
+
+% === PALETA "MIDNIGHT PITCH" — dark mode + acentos vibrantes ===========
+\definecolor{bgdark}{HTML}{0F1419}
+\definecolor{bgcard}{HTML}{1A2129}
+\definecolor{bgcard2}{HTML}{232B36}
+\definecolor{textmain}{HTML}{E8EEF2}
+\definecolor{textmuted}{HTML}{8B96A3}
+\definecolor{accent}{HTML}{00E5A8}
+\definecolor{accentdark}{HTML}{00B388}
+\definecolor{coral}{HTML}{FF6B6B}
+\definecolor{indigo}{HTML}{6C8EFF}
+\definecolor{amber}{HTML}{FFD166}
+
+% === Beamer color setup ================================================
+\setbeamercolor{normal text}{fg=textmain, bg=bgdark}
+\setbeamercolor{background canvas}{bg=bgdark}
+\setbeamercolor{frametitle}{fg=textmain, bg=bgdark}
+\setbeamercolor{title}{fg=textmain}
+\setbeamercolor{subtitle}{fg=accent}
+\setbeamercolor{author}{fg=textmuted}
+\setbeamercolor{institute}{fg=textmuted}
+\setbeamercolor{date}{fg=textmuted}
+\setbeamercolor{progress bar}{fg=accent}
+\setbeamercolor{progress bar in section page}{fg=accent}
+\setbeamercolor{title separator}{fg=accent}
+\setbeamercolor{alerted text}{fg=accent}
+\setbeamercolor{example text}{fg=accent}
+\setbeamercolor{block title}{bg=bgcard, fg=accent}
+\setbeamercolor{block body}{bg=bgcard, fg=textmain}
+\setbeamercolor{block title alerted}{bg=bgcard, fg=coral}
+\setbeamercolor{block body alerted}{bg=bgcard, fg=textmain}
+\setbeamercolor{block title example}{bg=bgcard, fg=indigo}
+\setbeamercolor{block body example}{bg=bgcard, fg=textmain}
+\setbeamercolor{section in toc}{fg=accent}
+\setbeamercolor{itemize item}{fg=accent}
+\setbeamercolor{itemize subitem}{fg=accentdark}
+\setbeamercolor{enumerate item}{fg=accent}
+\setbeamercolor{caption name}{fg=accent}
+\setbeamercolor{section title}{fg=accent}
+\setbeamercolor{subsection title}{fg=accent}
+
+% === Tipografía =========================================================
+\setbeamerfont{frametitle}{size=\Large, series=\bfseries}
+\setbeamerfont{title}{series=\bfseries, size=\Huge}
+\setbeamerfont{subtitle}{size=\Large}
+\setbeamerfont{block title}{series=\bfseries, size=\normalsize}
+\setbeamerfont{author}{size=\normalsize}
+\setbeamerfont{date}{size=\small}
+\setbeamerfont{section title}{series=\bfseries, size=\huge}
+
+% === Metropolis configuration ===========================================
+\metroset{
+  block=fill,
+  progressbar=foot,
+  numbering=fraction,
+  sectionpage=progressbar,
+  titleformat=allsmallcaps,
+  titleformat frame=regular,
+  background=dark
+}
+
+% === Custom commands "modern pitch deck" ===============================
+
+% Hero stat — gigante number on slide
+\newcommand{\herostat}[2]{%
+  \vspace*{\fill}
+  \begin{center}
+  {\fontsize{96pt}{108pt}\selectfont\bfseries\color{accent}#1}\\[0.5em]
+  {\Large\color{textmuted}#2}
+  \end{center}
+  \vspace*{\fill}
+}
+
+% Big idea — large centered text
+\newcommand{\bigidea}[1]{%
+  \vspace*{0.3em}
+  \begin{center}
+  {\fontsize{32pt}{40pt}\selectfont\bfseries\color{textmain}#1}
+  \end{center}
+  \vspace*{0.3em}
+}
+
+% Sub-hero — secondary big text
+\newcommand{\subhero}[1]{%
+  \begin{center}
+  {\LARGE\bfseries\color{accent}#1}
+  \end{center}
+}
+
+% Modern card with rounded corners
+\newtcolorbox{card}[1][]{%
+  enhanced, breakable,
+  colback=bgcard, colframe=bgcard,
+  arc=5pt, boxrule=0pt,
+  left=12pt, right=12pt, top=10pt, bottom=10pt,
+  fontupper=\color{textmain},
+  drop shadow={black!50!bgdark},
+  #1
+}
+
+% Accent card (with thin accent border)
+\newtcolorbox{accentcard}[1][]{%
+  enhanced, breakable,
+  colback=bgcard, colframe=accent,
+  arc=5pt, boxrule=1pt,
+  left=12pt, right=12pt, top=10pt, bottom=10pt,
+  fontupper=\color{textmain},
+  #1
+}
+
+% Alert card
+\newtcolorbox{alertcard}[1][]{%
+  enhanced, breakable,
+  colback=bgcard, colframe=coral,
+  arc=5pt, boxrule=1pt,
+  left=12pt, right=12pt, top=10pt, bottom=10pt,
+  fontupper=\color{textmain},
+  #1
+}
+
+% Stat card — small card with big number + label
+\newcommand{\statcard}[2]{%
+  \begin{tcolorbox}[enhanced, colback=bgcard, colframe=bgcard, arc=5pt, boxrule=0pt,
+    width=3.4cm, halign=center, valign=center,
+    height=2.2cm, fontupper=\color{textmain}]
+    {\fontsize{32pt}{38pt}\selectfont\bfseries\color{accent}#1}\\[0.2em]
+    {\footnotesize\color{textmuted}#2}
+  \end{tcolorbox}
+}
+
+% Pill / chip badge
+\newcommand{\pill}[2]{%
+  \tikz[baseline=(b.base)]\node[fill=#1, text=textmain, rounded corners=8pt,
+    inner sep=4pt, font=\footnotesize\bfseries] (b) {#2};%
+}
+
+% Bullet items con icon (sin fontawesome)
+\newcommand{\checkitem}[1]{\textcolor{accent}{\textbf{\checkmark}}~~#1}
+\newcommand{\xitem}[1]{\textcolor{coral}{\textbf{\texttimes}}~~#1}
+\newcommand{\dotitem}[1]{\textcolor{accent}{\textbullet}~~#1}
+\newcommand{\arrowitem}[1]{\textcolor{accent}{$\rightarrow$}~~#1}
+
+% Override Beamer's default item to use accent
+\setbeamertemplate{itemize item}{\color{accent}\textbullet}
+\setbeamertemplate{itemize subitem}{\color{accentdark}--}
+\setbeamertemplate{itemize subsubitem}{\color{accentdark}\textperiodcentered}
