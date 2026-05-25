@@ -37,18 +37,24 @@ import os
 import posixpath
 import struct
 import time
+import logging
 from enum import IntEnum
 from typing import Optional, Tuple
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
 
+logger = logging.getLogger("SDDV.Security")
+
 MAGIC   = b"SDDV"
 VERSION = 1
 
-NONCE_SIZE = 12
-TAG_SIZE   = 16
-KEY_SIZE   = 32
+NONCE_SIZE     = 12
+TAG_SIZE       = 16
+KEY_SIZE       = 32
+VALID_MAGIC    = {b"SDDV", b"SDDH"}
+VALID_ALGO_ID  = {0x01, 0x02}
+MIN_HEADER_LEN = 16
 
 # Limite de longitud para filename (filesystems mainstream limitan a 255 bytes)
 MAX_FILENAME_LEN = 255
@@ -174,6 +180,31 @@ def validate_filename(filename: str) -> None:
 class Algorithm(IntEnum):
     AES_256_GCM       = 1
     CHACHA20_POLY1305 = 2
+
+
+# -- Validacion de entrada -----------------------------------------------------
+
+def _validate_container_header(data: bytes) -> None:
+    """
+    Rechaza input invalido antes de cualquier parsing.
+
+    Usa un mensaje generico unico para evitar filtrar informacion
+    a traves de mensajes de error distinguibles (CWE-209).
+
+    Lanza ValueError('Invalid container') si:
+      - data no es bytes o bytearray
+      - data tiene menos de MIN_HEADER_LEN bytes
+      - los primeros 4 bytes no son un magic valido (SDDV o SDDH)
+      - el byte de algo_id (indice 5) no es 0x01 ni 0x02
+    """
+    if not isinstance(data, (bytes, bytearray)):
+        raise ValueError("Invalid container")
+    if len(data) < MIN_HEADER_LEN:
+        raise ValueError("Invalid container")
+    if bytes(data[:4]) not in VALID_MAGIC:
+        raise ValueError("Invalid container")
+    if data[5] not in VALID_ALGO_ID:
+        raise ValueError("Invalid container")
 
 
 # -- Construccion y parseo de cabecera ----------------------------------------
@@ -330,6 +361,7 @@ def decrypt_file(
         ValueError  -- formato invalido, filename inseguro, timestamp fuera
                        de la ventana de freshness, o bytes sobrantes
     """
+    _validate_container_header(container)  # fix: reject invalid input early
     metadata, header_end = _parse_header(container)
     validate_timestamp(metadata["timestamp"], max_age_seconds)
     header = container[:header_end]
