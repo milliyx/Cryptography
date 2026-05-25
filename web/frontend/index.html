@@ -44,8 +44,8 @@
   <main id="app" class="hidden">
     <nav class="tabs">
       <button class="tab active" data-view="identities">Identidades</button>
-      <button class="tab" data-view="secure-send">Cifrar &amp; firmar</button>
-      <button class="tab" data-view="secure-recv">Verificar &amp; descifrar</button>
+      <button class="tab" data-view="secure-send">Cifrar y firmar</button>
+      <button class="tab" data-view="secure-recv">Verificar y descifrar</button>
       <button class="tab" data-view="backup">Backup</button>
     </nav>
 
@@ -70,6 +70,51 @@
           <tbody id="identities-rows"></tbody>
         </table>
       </div>
+
+      <div id="identity-detail" class="panel detail hidden">
+        <div class="panel-head">
+          <h2>Detalle: <span id="detail-name"></span></h2>
+          <button id="detail-close">cerrar</button>
+        </div>
+
+        <div class="detail-rows">
+          <div class="detail-row">
+            <span class="detail-label">Estado</span>
+            <span class="detail-value" id="detail-status"></span>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">X25519 pub <span class="muted">(usar al cifrar para esta identidad)</span></span>
+            <div class="copy-box">
+              <code id="detail-x-pub"></code>
+              <button data-copy="detail-x-pub">copiar</button>
+            </div>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">Ed25519 pub <span class="muted">(usar al verificar firma)</span></span>
+            <div class="copy-box">
+              <code id="detail-ed-pub"></code>
+              <button data-copy="detail-ed-pub">copiar</button>
+            </div>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">X25519 fingerprint <span class="muted">(solo identificacion)</span></span>
+            <code class="detail-value mono-block" id="detail-x-fp"></code>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">Ed25519 fingerprint <span class="muted">(solo identificacion)</span></span>
+            <code class="detail-value mono-block" id="detail-ed-fp"></code>
+          </div>
+
+          <div class="detail-row hidden" id="detail-expires-row">
+            <span class="detail-label">Expira</span>
+            <span class="detail-value" id="detail-expires"></span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Cifrar y firmar --------------------------------------------------- -->
@@ -87,8 +132,8 @@
           <label>Password de la identidad firmante
             <input type="password" name="signer_pwd" required>
           </label>
-          <label>Fingerprints X25519 de los destinatarios (uno por linea, 64 hex)
-            <textarea name="recipients" rows="3" placeholder="abcd1234..." required></textarea>
+          <label>Llave publica X25519 de los destinatarios (raw hex, 64 chars, una por linea)
+            <textarea name="recipients" rows="3" placeholder="copia desde 'ver' en Identidades el campo 'X25519 pub (raw hex)'" required></textarea>
           </label>
           <button type="submit" class="primary">Cifrar y firmar</button>
         </form>
@@ -111,8 +156,8 @@
           <label>Password de la identidad destinataria
             <input type="password" name="recipient_pwd" required>
           </label>
-          <label>Fingerprint Ed25519 esperado del firmante
-            <input type="text" name="signer_fp" required pattern="[a-fA-F0-9]{64}" placeholder="64 hex">
+          <label>Llave publica Ed25519 del firmante esperado (raw hex, 64 chars)
+            <input type="text" name="signer_fp" required pattern="[a-fA-F0-9]{64}" placeholder="copia desde 'ver' en Identidades el campo 'Ed25519 pub (raw hex)'">
           </label>
           <button type="submit" class="primary">Verificar y descifrar</button>
         </form>
@@ -160,6 +205,26 @@
       </div>
     </section>
   </main>
+
+  <!-- Toasts -------------------------------------------------------------- -->
+  <div id="toasts" aria-live="polite"></div>
+
+  <!-- Modal generico para pedir un input o confirmar ---------------------- -->
+  <dialog id="modal-prompt">
+    <form id="form-prompt">
+      <h2 id="prompt-title"></h2>
+      <p id="prompt-message" class="muted"></p>
+      <label id="prompt-label" class="hidden">
+        <span id="prompt-input-label"></span>
+        <input type="text" id="prompt-input">
+      </label>
+      <p id="prompt-error" class="msg error"></p>
+      <div class="row">
+        <button type="button" id="prompt-cancel">Cancelar</button>
+        <button type="submit" class="primary" id="prompt-ok">OK</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- Modal: nueva identidad --------------------------------------------- -->
   <dialog id="modal-new-identity">

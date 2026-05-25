@@ -345,3 +345,41 @@ def test_stolen_keystore_no_puede_firmar_como_la_victima(tmp_path):
     # Aun con la publica, el atacante no puede generar una firma valida.
     # Si lo intentara con un Ed25519 generado al vuelo, no verificaria
     # contra la publica de la victima (cubierto por test_signatures).
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Orden verify -> unlock en verify_and_decrypt_from_keystore
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Si llega un contenedor con firma forjada, la verificacion debe rechazarlo
+# ANTES de desbloquear la X25519 del destinatario (que cuesta scrypt). Para
+# detectar regresiones del orden combinamos firma forjada + password
+# equivocado: si el unlock corriera primero, lanzaria InvalidTag por el
+# password; con el orden correcto lanza InvalidSignature por la firma.
+
+def test_firma_forjada_se_rechaza_antes_de_intentar_unlock(tmp_path):
+    from cryptography.exceptions import InvalidSignature
+
+    ks = KeyStore(tmp_path / "ks", kdf_params=FAST_PARAMS)
+    ks.init_identity("alice", PASSWORD)
+    ks.init_identity("bob",   PASSWORD)
+    ks.init_identity("eve",   PASSWORD)
+
+    # Eve firma con SU clave, no la de Alice. El receptor (Bob) espera a Alice.
+    bob_x = ks.get_public_keys("bob")["x25519_pub"]
+    container = encrypt_and_sign_from_keystore(
+        ks, "eve", PASSWORD,
+        plaintext=b"payload",
+        filename="m.txt",
+        recipients_x25519=[bob_x],
+    )
+    alice_ed = ks.get_public_keys("alice")["ed25519_pub"]
+
+    # Password de Bob incorrecto a proposito: el orden correcto rechaza por
+    # firma; si unlock corriera primero, veriamos InvalidTag (no InvalidSignature).
+    with pytest.raises(InvalidSignature):
+        verify_and_decrypt_from_keystore(
+            ks, "bob", "passwordIncorrecto_2026!",
+            signed_container=container,
+            expected_signer_pub=alice_ed,
+        )
