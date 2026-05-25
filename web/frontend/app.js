@@ -149,6 +149,23 @@ function downloadBytes(filename, bytes, mime = "application/octet-stream") {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// Envuelve una operacion async con loading state en un boton.
+// Util para operaciones bloqueantes (scrypt ~150ms). Restaura el boton
+// aunque falle la operacion.
+async function withLoading(btn, asyncFn) {
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.classList.add("loading");
+  btn.innerHTML = `<span class="btn-spinner"></span>${original}`;
+  try {
+    return await asyncFn();
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("loading");
+    btn.innerHTML = original;
+  }
+}
+
 // Convierte el resultado de pyodide.runPython (PyProxy o tipo nativo) a JS.
 function pyToJs(val) {
   if (val && typeof val.toJs === "function") {
@@ -209,14 +226,20 @@ async function refreshIdentities() {
 
   for (const it of items) {
     const tr = document.createElement("tr");
-    const fpShort = (it.ed25519_fp || "").slice(0, 12) + "..." + (it.ed25519_fp || "").slice(-8);
+    const fp = it.ed25519_fp || "";
+    const fpShort = fp.slice(0, 12) + "..." + fp.slice(-8);
     tr.innerHTML = `
       <td>${escapeHtml(it.name)}</td>
       <td><span class="badge ${escapeHtml(it.status)}">${escapeHtml(it.status)}</span></td>
-      <td class="mono" title="${escapeHtml(it.ed25519_fp)}">${escapeHtml(fpShort)}</td>
+      <td class="mono fp-cell" title="${escapeHtml(fp)}">
+        ${escapeHtml(fpShort)}
+        <button class="copy-btn" data-act="copy-fp" data-fp="${escapeHtml(fp)}" title="Copiar fingerprint completo">⧉</button>
+      </td>
       <td class="muted">${escapeHtml((it.created_at || "").slice(0, 19).replace("T", " "))}</td>
       <td class="actions">
         <button data-act="info"   data-name="${escapeHtml(it.name)}">ver</button>
+        <button data-act="rotate" data-name="${escapeHtml(it.name)}">rotar</button>
+        <button data-act="chpwd"  data-name="${escapeHtml(it.name)}">password</button>
         <button data-act="revoke" data-name="${escapeHtml(it.name)}">revocar</button>
         <button data-act="delete" data-name="${escapeHtml(it.name)}">borrar</button>
       </td>
@@ -308,6 +331,18 @@ idRows.addEventListener("click", async (ev) => {
   const name = btn.dataset.name;
   const act  = btn.dataset.act;
 
+  // Copiar fingerprint completo al portapapeles
+  if (act === "copy-fp") {
+    const fp = btn.dataset.fp;
+    try {
+      await navigator.clipboard.writeText(fp);
+      toast("Fingerprint copiado al portapapeles", "info", 2000);
+    } catch (err) {
+      toast("No se pudo copiar: " + formatError(err), "error");
+    }
+    return;
+  }
+
   if (act === "info") {
     try {
       const info = await callPy("get_public_info", [name]);
@@ -315,6 +350,55 @@ idRows.addEventListener("click", async (ev) => {
     } catch (err) {
       toast(formatError(err), "error");
     }
+  }
+  else if (act === "rotate") {
+    const pwd = await askPrompt({
+      title:   `Rotar "${name}"`,
+      message: "Genera un nuevo par de llaves. La identidad anterior se archiva con sufijo .rotated-<timestamp>.",
+      input: { label: "Password de la identidad", type: "password", required: true },
+      okText: "Rotar",
+    });
+    if (pwd === null || pwd === "") return;
+    await withLoading(btn, async () => {
+      try {
+        const result = await callPy("rotate_identity", [name, pwd]);
+        await runtime.persistKeystore();
+        await refreshIdentities();
+        const newFp = (result.ed25519_fp || "").slice(0, 12);
+        toast(`"${name}" rotada. Nuevo fp: ${newFp}...`, "info");
+      } catch (err) {
+        toast(formatError(err), "error");
+      }
+    });
+  }
+  else if (act === "chpwd") {
+    const oldPwd = await askPrompt({
+      title:   `Cambiar password de "${name}"`,
+      message: "Paso 1 de 2: confirma con el password actual.",
+      input: { label: "Password actual", type: "password", required: true },
+      okText: "Siguiente",
+    });
+    if (oldPwd === null || oldPwd === "") return;
+    const newPwd = await askPrompt({
+      title:   `Cambiar password de "${name}"`,
+      message: "Paso 2 de 2: nuevo password (minimo 12 caracteres).",
+      input: { label: "Password nuevo", type: "password", required: true },
+      okText: "Cambiar",
+    });
+    if (newPwd === null || newPwd === "") return;
+    if (newPwd.length < 12) {
+      toast("El password nuevo debe tener al menos 12 caracteres", "error");
+      return;
+    }
+    await withLoading(btn, async () => {
+      try {
+        await callPy("change_password", [name, oldPwd, newPwd]);
+        await runtime.persistKeystore();
+        toast(`Password de "${name}" actualizado`, "info");
+      } catch (err) {
+        toast(formatError(err), "error");
+      }
+    });
   }
   else if (act === "revoke") {
     const reason = await askPrompt({

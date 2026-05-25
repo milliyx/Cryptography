@@ -178,10 +178,15 @@ dialog {
   padding: 24px; min-width: 360px; max-width: 90vw;
 }
 dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
-dialog h2 { margin: 0 0 16px; font-size: 14px; font-weight: 600; }
+dialog h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+dialog p { margin: 4px 0 8px; }
 dialog form { gap: 12px; max-width: none; }
+dialog code {
+  font: 12px ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  color: var(--muted-2);
+}
 
-/* Panel de detalle de identidad ---------------------------------------- */
+/* Panel de detalle de identidad (de origin/main) ----------------------- */
 .detail-rows {
   display: flex;
   flex-direction: column;
@@ -218,7 +223,7 @@ dialog form { gap: 12px; max-width: none; }
 .panel.detail h2 { font-size: 14px; }
 .panel.detail h2 span { font-weight: 500; color: var(--muted-2); }
 
-/* Toasts --------------------------------------------------------------- */
+/* Toasts (sistema de origin/main: clases .toast-info, .toast-error) ---- */
 #toasts {
   position: fixed;
   top: 16px;
@@ -245,8 +250,40 @@ dialog form { gap: 12px; max-width: none; }
 }
 .toast-error { border-left-color: var(--error); }
 .toast-info  { border-left-color: var(--accent); }
+.toast-warn  { border-left-color: var(--warn); }
 .toast-out   { opacity: 0; transform: translateX(20px); transition: 0.18s ease; }
 @keyframes toast-in {
   from { transform: translateX(20px); opacity: 0; }
   to   { transform: translateX(0);   opacity: 1; }
 }
+
+/* Adiciones de feature/d6-key-management ------------------------------- */
+
+/* Botón "danger" para acciones destructivas (delete) */
+button.danger {
+  background: var(--error); border-color: var(--error); color: var(--bg);
+}
+button.danger:hover { filter: brightness(1.05); border-color: var(--error); }
+
+/* Botón pequeño "copiar fingerprint" en celdas de la tabla */
+.fp-cell { display: flex; align-items: center; gap: 6px; }
+.copy-btn {
+  padding: 1px 6px; font-size: 11px;
+  line-height: 1; opacity: 0.5;
+  border-color: transparent;
+}
+.copy-btn:hover { opacity: 1; border-color: var(--hairline-2); }
+
+/* Spinner para botones durante operaciones largas (scrypt ~150ms) */
+.btn-spinner {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+button.loading { cursor: progress; }
