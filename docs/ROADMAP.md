@@ -135,17 +135,13 @@ fingerprint; integración con `<select>` en pestaña Cifrar.
 
 **Esfuerzo:** 3-4 h.
 
-### 9. Aviso para iOS Safari
+### 9. Aviso para iOS Safari — ✅ HECHO en PR #20
 
-**Estado:** iOS Safari puede agotar memoria por pestaña al cargar
-Pyodide; existe rama `feature/ios-warning` (commit `2bc9c6c`) con un
-aviso amigable, **no mergeada** a `main`.
+**Estado:** mergeado en `main` por Sergio (PR #20). El aviso amigable
+detecta iPhone y muestra una explicación de la limitación de memoria
+de iOS Safari.
 
-**Por qué quedó fuera:** simple olvido / pendiente de revisión.
-
-**Cómo se haría:** `git merge feature/ios-warning`.
-
-**Esfuerzo:** 5 min + verificación.
+**Commit:** `2bc9c6c feat(web): aviso amable cuando se abre desde iPhone`
 
 ### 10. Sincronización entre dispositivos
 
@@ -204,6 +200,6 @@ Eso convierte un hueco potencial en evidencia de madurez técnica.
 
 ## Acciones de bajo costo / alto impacto si hay 1 hora extra
 
-1. Mergear `feature/ios-warning` → main (5 min).
+1. ~~Mergear `feature/ios-warning` → main~~ — ya hecho en PR #20.
 2. Agregar SRI al wheel de cryptography (3-4 h, alto valor de seguridad).
 3. Test de interop CLI ↔ web (~2 h, cierra defensa "¿cómo saben que funciona?").
