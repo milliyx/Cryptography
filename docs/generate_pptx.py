@@ -828,6 +828,86 @@ def slide_limits(prs, c, t):
                  desc, font_size=10, color=TEXT_MAIN)
 
 
+def slide_frontend_arch(prs, c, t):
+    s = slide_frame(prs, "Arquitectura zero-server", c, t, "6 · Frontend Web")
+    add_text(s, Inches(0.5), Inches(1.4), Inches(12.3), Inches(1.2),
+             "Todo corre en el navegador.\nCero backend.",
+             font_size=36, color=TEXT_MAIN, bold=True, align=PP_ALIGN.CENTER)
+    # 2 cards
+    info = [
+        ("Stack", ACCENT, [
+            "● Pyodide v0.27.2 — CPython en WASM",
+            "● cryptography (wheel oficial)",
+            "● HTML/CSS/JS vanilla — sin frameworks",
+            "● IndexedDB via IDBFS → /keystore",
+            "● GitHub Pages (estático, sin servidor)"]),
+        ("Zero-divergence", INDIGO, [
+            "El workflow Pages hace:",
+            "cp -r crypto _site/crypto",
+            "",
+            "El frontend y el CLI ejecutan",
+            "los mismos archivos .py.",
+            "Los 300 tests del backend cubren",
+            "la lógica del navegador."]),
+    ]
+    cw = Inches(5.8); ch = Inches(3.6)
+    for i, (titulo, col, bullets) in enumerate(info):
+        cx = Inches(0.7 + i * 6.1); cy = Inches(3.0)
+        add_card(s, cx, cy, cw, ch, fill=BG_CARD, border=col, border_w=1.5)
+        add_text(s, cx + Inches(0.3), cy + Inches(0.25), cw, Inches(0.5),
+                 titulo, font_size=20, color=col, bold=True)
+        for j, b in enumerate(bullets):
+            font = FONT_MONO if "cp -r" in b or "_site" in b else FONT
+            add_text(s, cx + Inches(0.3), cy + Inches(0.9 + j * 0.4),
+                     cw, Inches(0.4), b,
+                     font_size=11, color=TEXT_MAIN, font_name=font)
+    add_text(s, Inches(0.5), Inches(6.85), Inches(12.3), Inches(0.3),
+             "milliyx.github.io/Cryptography",
+             font_size=10, color=TEXT_MUTED, align=PP_ALIGN.CENTER, font_name=FONT_MONO)
+
+
+def slide_frontend_defenses(prs, c, t):
+    s = slide_frame(prs, "Defensas del frontend", c, t, "6 · Frontend Web")
+    # 2 cards lado a lado
+    keep = [
+        "✓  Verify-first del D5",
+        "✓  AAD del DEM (D2/D3)",
+        "✓  Fail-closed: InvalidTag/InvalidSignature",
+        "✓  Llaves privadas NUNCA dejan el navegador",
+        "✓  Sin telemetría, sin terceros para datos",
+    ]
+    risks = [
+        "✗  ADV-3 (supply chain) → mitigado con",
+        "    SRI sha384 sobre Pyodide",
+        "✗  ADV-6 amplificado: navegador = mas",
+        "    superficie. Para secretos sensibles",
+        "    se recomienda usar el CLI.",
+        "✗  XSS/clickjacking → CSP estricta +",
+        "    frame-ancestors 'none'",
+    ]
+    cw = Inches(5.8); ch = Inches(4.3)
+
+    cx = Inches(0.7); cy = Inches(1.4)
+    add_card(s, cx, cy, cw, ch, fill=BG_CARD, border=ACCENT, border_w=1.5)
+    add_text(s, cx + Inches(0.3), cy + Inches(0.25), cw, Inches(0.5),
+             "Lo que mantiene", font_size=18, color=ACCENT, bold=True)
+    for j, b in enumerate(keep):
+        add_text(s, cx + Inches(0.3), cy + Inches(0.95 + j * 0.55), cw, Inches(0.5),
+                 b, font_size=12, color=TEXT_MAIN)
+
+    cx = Inches(6.8); cy = Inches(1.4)
+    add_card(s, cx, cy, cw, ch, fill=BG_CARD, border=CORAL, border_w=1.5)
+    add_text(s, cx + Inches(0.3), cy + Inches(0.25), cw, Inches(0.5),
+             "Nuevos riesgos", font_size=18, color=CORAL, bold=True)
+    for j, b in enumerate(risks):
+        add_text(s, cx + Inches(0.3), cy + Inches(0.95 + j * 0.45), cw, Inches(0.5),
+                 b, font_size=11, color=TEXT_MAIN)
+
+    add_text(s, Inches(0.5), Inches(6.0), Inches(12.3), Inches(0.6),
+             "Trade-off documentado en web/README.md y docs/D1_Threat_Model.md §6.5",
+             font_size=11, color=TEXT_MUTED, italic=True, align=PP_ALIGN.CENTER)
+
+
 def slide_demo(prs, c, t):
     s = slide_frame(prs, "Lo que vamos a mostrar", c, t, "6 · Final Demo")
     items = [
@@ -969,8 +1049,13 @@ def build():
     c += 1; slide_vulns(prs, c, total)
     c += 1; slide_limits(prs, c, total)
 
-    # Sección 6
-    c += 1; slide_section(prs, 6, "Final Demo", c, total)
+    # Sección 6 — Frontend Web
+    c += 1; slide_section(prs, 6, "Frontend Web", c, total)
+    c += 1; slide_frontend_arch(prs, c, total)
+    c += 1; slide_frontend_defenses(prs, c, total)
+
+    # Sección 7 — Final Demo
+    c += 1; slide_section(prs, 7, "Final Demo", c, total)
     c += 1; slide_demo(prs, c, total)
     c += 1; slide_estado(prs, c, total)
 

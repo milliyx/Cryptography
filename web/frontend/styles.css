@@ -178,5 +178,72 @@ dialog {
   padding: 24px; min-width: 360px; max-width: 90vw;
 }
 dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
-dialog h2 { margin: 0 0 16px; font-size: 14px; font-weight: 600; }
+dialog h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+dialog p { margin: 4px 0 8px; }
 dialog form { gap: 12px; max-width: none; }
+dialog code {
+  font: 12px ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  color: var(--muted-2);
+}
+
+/* Info list dentro del modal info -------------------------------------- */
+.info-list {
+  display: grid; grid-template-columns: max-content 1fr;
+  gap: 6px 16px; margin: 0;
+  font-size: 13px;
+}
+.info-list dt { color: var(--muted); font-size: 11px; padding-top: 2px; }
+.info-list dd { margin: 0; }
+.info-list .break { word-break: break-all; line-height: 1.45; }
+
+/* Modal danger button (rojo coral) ------------------------------------- */
+button.danger {
+  background: var(--error); border-color: var(--error); color: var(--bg);
+}
+button.danger:hover { filter: brightness(1.05); border-color: var(--error); }
+
+/* Copy fingerprint button (en celdas .fp-cell) ------------------------- */
+.fp-cell { display: flex; align-items: center; gap: 6px; }
+.copy-btn {
+  padding: 1px 6px; font-size: 11px;
+  line-height: 1; opacity: 0.5;
+  border-color: transparent;
+}
+.copy-btn:hover { opacity: 1; border-color: var(--hairline-2); }
+
+/* Spinner en botones durante operaciones -------------------------------- */
+.btn-spinner {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+button.loading { cursor: progress; }
+
+/* Toasts ---------------------------------------------------------------- */
+.toasts {
+  position: fixed; right: 24px; bottom: 24px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 9999; pointer-events: none;
+  max-width: 360px;
+}
+.toast {
+  background: #14141a; color: var(--text);
+  border: 1px solid var(--hairline-2);
+  border-left: 3px solid var(--muted-2);
+  border-radius: 4px; padding: 10px 14px;
+  font-size: 13px;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.info  { border-left-color: var(--accent); }
+.toast.error { border-left-color: var(--error); }
+.toast.warn  { border-left-color: var(--warn); }

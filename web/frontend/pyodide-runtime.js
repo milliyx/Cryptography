@@ -9,9 +9,9 @@
 const PYODIDE_VERSION = "0.27.2";
 const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 
-// Archivos del paquete crypto/ que necesitamos en el navegador.
-// El SO de Pyodide es POSIX-like; cargamos cada .py y lo escribimos al FS virtual.
-const CRYPTO_FILES = [
+// Fallback de seguridad si el manifest no esta disponible (p.ej. en dev sin
+// regenerarlo). Mantiene la lista estatica como ultima opcion para no romper.
+const CRYPTO_FILES_FALLBACK = [
   "__init__.py",
   "aead.py",
   "hybrid.py",
@@ -28,6 +28,27 @@ async function fetchText(url) {
   const r = await fetch(url, { cache: "force-cache" });
   if (!r.ok) throw new Error(`fetch ${url}: HTTP ${r.status}`);
   return r.text();
+}
+
+async function fetchJsonOrNull(url) {
+  try {
+    const r = await fetch(url, { cache: "no-cache" });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+// Obtiene la lista de archivos crypto/ desde un manifest generado en
+// build-time (workflow Pages) o desde el fallback estatico si no existe.
+// El manifest tiene forma: { "files": ["__init__.py", "aead.py", ...] }
+async function discoverCryptoFiles(baseUrl) {
+  const manifest = await fetchJsonOrNull(baseUrl + "_manifest.json");
+  if (manifest && Array.isArray(manifest.files) && manifest.files.length > 0) {
+    return manifest.files;
+  }
+  return CRYPTO_FILES_FALLBACK;
 }
 
 function syncfs(pyodide, fromIDB) {
@@ -59,8 +80,9 @@ export async function initRuntime(onProgress = () => {}) {
   // de Pages. En local servimos web/frontend con http.server y dejamos un
   // enlace simbolico o copia; por defecto buscamos en `./crypto/`.
   const base = new URL("./crypto/", document.baseURI).href;
+  const cryptoFiles = await discoverCryptoFiles(base);
   await Promise.all(
-    CRYPTO_FILES.map(async (f) => {
+    cryptoFiles.map(async (f) => {
       const text = await fetchText(base + f);
       pyodide.FS.writeFile(`/crypto/${f}`, text);
     })

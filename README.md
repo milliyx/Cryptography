@@ -7,7 +7,12 @@
 
 ## ¿Qué es?
 
-Una aplicación de línea de comandos diseñada para proteger documentos sensibles mediante criptografía moderna. Permite cifrar, firmar y compartir archivos de manera segura sin depender de herramientas tradicionales como el correo electrónico o almacenamiento en la nube, que no ofrecen garantías criptográficas sólidas.
+Una aplicación para proteger documentos sensibles mediante criptografía moderna. Permite cifrar, firmar y compartir archivos de manera segura sin depender de herramientas tradicionales como el correo electrónico o almacenamiento en la nube, que no ofrecen garantías criptográficas sólidas.
+
+SDDV se distribuye en **dos formas equivalentes**:
+
+- **CLI Python** — `python -m crypto`, ejecutable en cualquier máquina con Python ≥ 3.10.
+- **Frontend web** — versión navegador 100% local construida con Pyodide. **Demo en vivo:** [`milliyx.github.io/Cryptography`](https://milliyx.github.io/Cryptography). Sin servidores, sin cuentas: las llaves privadas literalmente nunca dejan el navegador del usuario.
 
 ## ¿Qué problema resuelve?
 
@@ -57,6 +62,15 @@ Proyecto/
 │   ├── test_keystore.py             # 37 tests — D6 API básica
 │   ├── test_keystore_lifecycle.py   # 21 tests — D6 rotate/revoke/change-pwd/expir
 │   └── test_keystore_security.py    # 20 tests — D6 rúbrica (stolen, modified, etc.)
+├── web/
+│   ├── README.md                    # Guía del frontend
+│   ├── dev-server.py                # Servidor estático local (puerto 5500)
+│   └── frontend/
+│       ├── index.html               # UI vanilla HTML
+│       ├── styles.css               # Tema dark + acento verde menta
+│       ├── app.js                   # Bridge JS ↔ Python (Pyodide)
+│       ├── pyodide-runtime.js       # Bootstrap Pyodide + IDBFS keystore
+│       └── sddv_api.py              # Adapter Python que expone crypto/ al navegador
 ├── docs/
 │   ├── architecture.svg             # Diagrama de arquitectura
 │   ├── D1_Threat_Model.md           # D1 — Modelo de amenazas consolidado
@@ -225,6 +239,56 @@ python demo_d6.py
 | 5 | Bob verifica y descifra desde su keystore | ✔ plaintext recuperado |
 | 6 | Rotación de las llaves de Alice | ✔ nuevo fingerprint; archivo `.rotated-<ts>.json` |
 | 7 | Backup → borrar → restore | ✔ identidad restaurada con password independiente |
+
+---
+
+## Frontend web (Pyodide)
+
+SDDV cuenta con una **versión web** que ejecuta toda la criptografía
+dentro del navegador del usuario mediante [Pyodide](https://pyodide.org)
+(CPython compilado a WebAssembly). El frontend reutiliza **el mismo
+código `crypto/`** que el CLI; no hay reimplementación en JavaScript.
+
+### Características clave
+
+- **Zero-server.** No hay backend ni base de datos. Las llaves privadas
+  viven en `IndexedDB` del navegador y nunca cruzan la red.
+- **Mismo código auditado.** Los módulos `crypto/aead.py`,
+  `crypto/hybrid.py`, `crypto/keystore.py`, etc. se descargan en
+  Pyodide y se ejecutan ahí — los mismos 300 tests del backend cubren
+  la lógica criptográfica del navegador.
+- **Persistencia transparente.** `IDBFS` monta `IndexedDB` en
+  `/keystore` dentro del filesystem virtual de Pyodide. Cierras la
+  pestaña, vuelves, las identidades siguen ahí.
+- **Demo en vivo.** Publicado vía GitHub Pages en
+  [`milliyx.github.io/Cryptography`](https://milliyx.github.io/Cryptography).
+
+### Cómo correr localmente
+
+```bash
+# Desde la raíz del repo
+python web/dev-server.py
+# → http://localhost:5500
+```
+
+El servidor de desarrollo mapea `/crypto/*` al módulo del repo y todo
+lo demás al directorio `web/frontend/`. Cero dependencias npm.
+
+### Limitaciones conocidas (documentadas en `web/README.md`)
+
+- **scrypt bloquea el main thread** ~0.5–1.5 s por operación
+  (no hay Web Worker todavía).
+- **iOS Safari** puede agotar memoria por pestaña en archivos grandes.
+- Sin tests automatizados del frontend; la compatibilidad CLI↔web es
+  "por construcción" (mismo `.py`), no probada por tests dedicados.
+
+### Modelo de amenaza del frontend
+
+El frontend **mantiene** las propiedades criptográficas del backend
+(verify-first, AAD, nonce uniqueness) pero **amplifica ADV-6**
+(dispositivo comprometido): un navegador es una superficie mucho
+mayor que un CLI nativo — extensiones, DevTools, BHO. Esto está
+declarado como trade-off explícito en `web/README.md`.
 
 ---
 

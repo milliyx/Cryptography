@@ -750,7 +750,73 @@ Misuse-resistant design · NaCl · libsodium
 Documentar lo que NO se hace es tan importante como documentar lo que sí.
 \end{center}
 
-# 6 · Final Demo
+# 6 · Frontend Web
+
+## Arquitectura zero-server
+
+\bigidea{Todo corre en el navegador.\\Cero backend.}
+
+\vspace{0.5em}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.5\textwidth}
+\begin{accentcard}
+{\bfseries\color{accent}Stack}\\[0.3em]
+\dotitem{\textbf{Pyodide v0.27.2} — CPython en WASM}\\
+\dotitem{\texttt{cryptography} (wheel oficial)}\\
+\dotitem{HTML / CSS / JS vanilla — sin frameworks}\\
+\dotitem{\textbf{IndexedDB} via IDBFS → \texttt{/keystore}}\\
+\dotitem{\textbf{GitHub Pages} (estático, sin servidor)}
+\end{accentcard}
+
+\column{0.5\textwidth}
+\begin{accentcard}
+{\bfseries\color{indigo}Zero-divergence}\\[0.3em]
+\small El workflow Pages hace:\\
+\texttt{cp -r crypto \_site/crypto}\\[0.5em]
+\footnotesize El frontend y el CLI ejecutan los \textbf{mismos} archivos \texttt{.py}.\\
+Los 300 tests del backend cubren la lógica del navegador.
+\end{accentcard}
+\end{columns}
+
+\vspace{0.5em}
+
+\begin{center}
+\footnotesize\color{textmuted}\texttt{milliyx.github.io/Cryptography}
+\end{center}
+
+## Defensas del frontend
+
+\vspace{0.3em}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.5\textwidth}
+\begin{accentcard}
+{\bfseries\color{accent}Lo que mantiene}\\[0.3em]
+\checkitem{Verify-first del D5}\\[0.2em]
+\checkitem{AAD del DEM (D2/D3)}\\[0.2em]
+\checkitem{Fail-closed: \texttt{InvalidTag}/\texttt{InvalidSignature}}\\[0.2em]
+\checkitem{Llaves privadas \textbf{nunca} dejan el navegador}\\[0.2em]
+\checkitem{Sin telemetría, sin terceros para datos}
+\end{accentcard}
+
+\column{0.5\textwidth}
+\begin{alertcard}
+{\bfseries\color{coral}Nuevos riesgos}\\[0.3em]
+\xitem{\textbf{ADV-3} (supply chain): mitigado con \textbf{SRI sha384} sobre Pyodide}\\[0.2em]
+\xitem{\textbf{ADV-6} amplificado: navegador = más superficie. Recomendamos CLI para secretos sensibles.}\\[0.2em]
+\xitem{XSS / clickjacking: mitigado con \textbf{CSP estricta} + \texttt{frame-ancestors 'none'}}
+\end{alertcard}
+\end{columns}
+
+\vspace{0.5em}
+
+\begin{center}
+\footnotesize\color{textmuted}\itshape
+Trade-off documentado en \texttt{web/README.md} y \texttt{docs/D1\_Threat\_Model.md §6.5}
+\end{center}
+
+# 7 · Final Demo
 
 ## Lo que vamos a mostrar
 

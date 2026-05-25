@@ -204,6 +204,72 @@ keystore activo (USB cifrado, gestor de contrasenas, papel en caja
 fuerte) y usar un password de backup que no se reutilice en ningun
 otro lugar.
 
+### 6.5 Superficie web (frontend Pyodide)
+
+SDDV tambien se distribuye como aplicacion web (carpeta `web/`). El
+frontend ejecuta el mismo modulo `crypto/` que el CLI mediante
+Pyodide (CPython en WebAssembly), y persiste el keystore en
+IndexedDB del navegador via IDBFS. **Esta seccion documenta como
+cambia el modelo de amenazas al mover la ejecucion al navegador.**
+
+**Adversarios que se mantienen igual:**
+
+- ADV-1, ADV-2, ADV-4, ADV-5: el codigo criptografico es identico
+  (mismo `aead.py`, `hybrid.py`, `signatures.py`, `keystore.py`,
+  `kdf.py`). Las propiedades AEAD/AAD/firma/scrypt se preservan
+  bit a bit.
+
+**Adversarios afectados por la migracion al navegador:**
+
+- **ADV-3 (supply chain, degradado)**: el script de Pyodide y el
+  wheel de `cryptography` se cargan desde `cdn.jsdelivr.net`. Un
+  compromiso del CDN o un MitM contra su TLS podria inyectar
+  codigo arbitrario con acceso a passwords y llaves desbloqueadas.
+
+  *Mitigacion implementada:* atributo `integrity="sha384-..."`
+  (Subresource Integrity) sobre `pyodide.js` (`web/frontend/index.html`).
+  El wheel de `cryptography` aun no tiene SRI — es una limitacion
+  conocida y esta en `web/README.md`.
+
+- **ADV-6 (dispositivo comprometido, amplificado)**: el navegador
+  es una superficie mucho mayor que un proceso CLI. Extensiones,
+  DevTools, Browser Helper Objects y content scripts pueden leer
+  el DOM, capturar teclas, dumpear memoria de la pagina. La History
+  API expone navegacion. Las cookies de otros origenes no afectan
+  pero un script same-origin (XSS) lo ve todo.
+
+  *Mitigacion implementada:* Content-Security-Policy estricta
+  (`script-src 'self' jsdelivr 'wasm-unsafe-eval'`), `escapeHtml`
+  en todo dato renderizado, sin `eval` / `Function()`, sin cookies.
+
+  *Mitigacion explicitamente NO implementada:* defensa contra
+  malware con privilegios de pagina. **Recomendacion:** para
+  almacenar identidades sensibles, preferir el CLI.
+
+- **Nuevas amenazas que NO existen en el CLI:**
+
+  | Amenaza | Estado | Mitigacion |
+  |---|---|---|
+  | XSS | Posible si se introduce | `escapeHtml`, CSP, sin `eval` |
+  | Clickjacking | Posible | `frame-ancestors 'none'` en CSP |
+  | Supply chain del CDN | Activo | SRI en `pyodide.js` |
+  | Confusion de origenes | Mitigado | same-origin policy del browser |
+
+**Asunciones nuevas que el frontend introduce:**
+
+1. El navegador del usuario es confiable (sin extensiones
+   maliciosas, sin malware con privilegios de pagina).
+2. TLS efectivo en GitHub Pages (Pages garantiza HSTS y cert
+   valido por default).
+3. El CDN de jsdelivr no esta comprometido; ademas el hash SRI
+   detiene scripts modificados.
+4. IndexedDB es exclusivo del origen (same-origin policy).
+
+**Conclusion:** el frontend mantiene las garantias criptograficas
+del backend pero **expande la superficie de ADV-6**. Esto se
+documenta explicitamente en `web/README.md` como trade-off
+consciente. Para uso con secretos sensibles, **preferir el CLI**.
+
 ---
 
 ## 7. Sintesis: que protege D6 y que no

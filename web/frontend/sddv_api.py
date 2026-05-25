@@ -74,6 +74,11 @@ def rotate_identity(name: str, password: str) -> dict:
     return dict(_ks().rotate_keys(name, password))
 
 
+def change_password(name: str, old_password: str, new_password: str) -> None:
+    """Re-cifra la identidad con un nuevo password (mismo material clave)."""
+    _ks().change_password(name, old_password, new_password)
+
+
 def delete_identity(name: str, password: str) -> None:
     _ks().delete(name, password)
 
