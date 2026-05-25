@@ -8,6 +8,22 @@ pytest-cache-files-*/
 dist/
 build/
 
+# Sistema (macOS)
+.DS_Store
+
+# Artefactos efímeros del demo D6 (contienen llaves de prueba)
+demo_keystore/
+demo_keystore_backups/
+
+# Outputs intermedios de pandoc/LaTeX
+*.aux
+*.log
+*.out
+*.toc
+*.nav
+*.snm
+*.vrb
+
 # D6 -- Key Management: nunca commitear material clave real
 # El keystore guarda llaves privadas cifradas; aun asi se ignora por defecto
 # para evitar publicar identidades reales del equipo.
