@@ -211,6 +211,14 @@ const idEmpty   = $("#identities-empty");
 const idTable   = $("#identities-table");
 const idRows    = $("#identities-rows");
 
+// Cache local de pubs de cada identidad. Se llena despues de cargar la lista.
+// Permite que el picker de destinatarios muestre la X25519 pub sin re-llamar
+// a Python por cada identidad y, sobre todo, sin pedirle al usuario que la
+// copie a mano. Indexado por nombre y por fingerprint Ed25519 (para
+// auto-detectar el firmante de un .sddh entrante).
+let identitiesByName = {};   // { name: { x25519_pub_hex, ed25519_pub_hex, fingerprints, status } }
+let identitiesByEdFp = {};   // { ed25519_fp_hex: name }
+
 async function refreshIdentities() {
   idEmpty.classList.add("hidden");
   idTable.classList.add("hidden");
@@ -221,6 +229,8 @@ async function refreshIdentities() {
   if (!items || items.length === 0) {
     idEmpty.classList.remove("hidden");
     updateSelects([]);
+    identitiesByName = {}; identitiesByEdFp = {};
+    renderRecipientPicker();
     return;
   }
 
@@ -248,6 +258,21 @@ async function refreshIdentities() {
   }
   idTable.classList.remove("hidden");
   updateSelects(items.map(x => x.name));
+
+  // Refrescar cache de pubs para el picker (una llamada Python por identidad)
+  const newByName = {}; const newByEdFp = {};
+  for (const it of items) {
+    try {
+      const info = await callPy("get_public_info", [it.name]);
+      newByName[it.name] = info;
+      if (info.fingerprints && info.fingerprints.ed25519) {
+        newByEdFp[info.fingerprints.ed25519] = it.name;
+      }
+    } catch { /* skip */ }
+  }
+  identitiesByName = newByName;
+  identitiesByEdFp = newByEdFp;
+  renderRecipientPicker();
 }
 
 // llena los <select> de las otras vistas con los nombres disponibles
@@ -273,6 +298,34 @@ function updateSelects(names) {
       sel.appendChild(opt);
     }
     if (names.includes(prev)) sel.value = prev;
+  }
+}
+
+// picker de destinatarios — lista las identidades como checkboxes en el
+// form de cifrar para que el usuario no tenga que copiar/pegar pubs.
+const recipientPicker = $("#recipient-picker");
+
+function renderRecipientPicker() {
+  if (!recipientPicker) return;
+  recipientPicker.innerHTML = "";
+  const names = Object.keys(identitiesByName);
+  if (names.length === 0) {
+    recipientPicker.innerHTML =
+      '<p class="picker-empty muted">No tienes identidades. Crea una en la pestana Identidades.</p>';
+    return;
+  }
+  for (const name of names.sort()) {
+    const info = identitiesByName[name];
+    if (!info.x25519_pub_hex) continue;
+    const xShort = info.x25519_pub_hex.slice(0, 12) + "..." + info.x25519_pub_hex.slice(-6);
+    const label = document.createElement("label");
+    label.className = "picker-item";
+    label.innerHTML = `
+      <input type="checkbox" name="recipient-check" value="${escapeHtml(name)}">
+      <span class="picker-name">${escapeHtml(name)}</span>
+      <span class="picker-meta" title="${escapeHtml(info.x25519_pub_hex)}">X25519: ${escapeHtml(xShort)}</span>
+    `;
+    recipientPicker.appendChild(label);
   }
 }
 
@@ -475,30 +528,96 @@ formNew.addEventListener("submit", async (ev) => {
 $("#form-send").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const out = $("#send-result");
-  showMsg(out, "Cifrando...", "info");
-  const fd = new FormData(ev.currentTarget);
+  const fd  = new FormData(ev.currentTarget);
   const file   = fd.get("file");
   const signer = fd.get("signer");
   const pwd    = fd.get("signer_pwd");
-  const recipients = String(fd.get("recipients"))
-    .split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
 
-  if (recipients.length === 0) { showMsg(out, "Sin destinatarios", "error"); return; }
+  // Destinatarios: checks de propias identidades + pubs externas pegadas
+  const checkedNames = fd.getAll("recipient-check");
+  const fromChecks = checkedNames
+    .map(n => identitiesByName[n]?.x25519_pub_hex)
+    .filter(Boolean);
+  const fromExternal = String(fd.get("external_recipients") || "")
+    .split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+  const recipients = [...fromChecks, ...fromExternal];
+
+  if (recipients.length === 0) {
+    showMsg(out, "Selecciona al menos un destinatario (checkbox o llave externa).", "error");
+    return;
+  }
   if (!file || file.size === 0) { showMsg(out, "Archivo vacio", "error"); return; }
 
+  showMsg(out, "Cifrando...", "info");
   try {
     const buf = new Uint8Array(await file.arrayBuffer());
     const container = await callPy("encrypt_and_sign",
       [signer, pwd, recipients, buf, file.name]);
     const bytes = container instanceof Uint8Array ? container : new Uint8Array(container);
     downloadBytes(file.name + ".sddh", bytes);
-    showMsg(out, `Listo. Descargando ${file.name}.sddh (${bytes.byteLength} bytes).`, "info");
+    const destLabel = checkedNames.length > 0
+      ? checkedNames.join(", ") + (fromExternal.length > 0 ? ` (+${fromExternal.length} externos)` : "")
+      : `${fromExternal.length} externos`;
+    showMsg(out,
+      `Listo. Cifrado para: ${destLabel}. Descargando ${file.name}.sddh (${bytes.byteLength} bytes).`,
+      "info");
   } catch (err) {
     showMsg(out, "Error: " + (formatError(err)), "error");
   }
 });
 
 // ── verificar + descifrar ────────────────────────────────────────────────
+
+// El footer de un SDDH firmado son los ultimos 100 bytes:
+//   SIGN_MAGIC(4)="SIGS" + FINGERPRINT(32) + SIGNATURE(64)
+// El fingerprint del firmante esta en claro. Lo leemos para poder
+// pre-rellenar el pub Ed25519 si coincide con una identidad conocida.
+const SIGN_FOOTER_SIZE = 4 + 32 + 64;
+
+function extractSignerFingerprint(uint8) {
+  if (!uint8 || uint8.length < SIGN_FOOTER_SIZE) return null;
+  const start = uint8.length - SIGN_FOOTER_SIZE;
+  // Magic "SIGS" = 0x53 0x49 0x47 0x53
+  if (uint8[start]     !== 0x53 ||
+      uint8[start + 1] !== 0x49 ||
+      uint8[start + 2] !== 0x47 ||
+      uint8[start + 3] !== 0x53) return null;
+  return Array.from(uint8.slice(start + 4, start + 36))
+    .map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+const recvFileInput   = $('#form-recv input[name="container"]');
+const recvSignerInput = $('#form-recv input[name="signer_fp"]');
+const recvSignerHint  = $("#recv-signer-detected");
+
+recvFileInput.addEventListener("change", async () => {
+  recvSignerHint.classList.add("hidden");
+  recvSignerHint.textContent = "";
+  const file = recvFileInput.files?.[0];
+  if (!file) return;
+  try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const fp = extractSignerFingerprint(buf);
+    if (!fp) {
+      recvSignerHint.textContent = "(no se pudo leer el footer del archivo)";
+      recvSignerHint.classList.remove("hidden");
+      return;
+    }
+    const knownName = identitiesByEdFp[fp];
+    if (knownName) {
+      const info = identitiesByName[knownName];
+      if (info?.ed25519_pub_hex) {
+        recvSignerInput.value = info.ed25519_pub_hex;
+        recvSignerHint.textContent = `Firmado por: ${knownName} (auto-detectado)`;
+        recvSignerHint.classList.remove("hidden");
+      }
+    } else {
+      const short = fp.slice(0, 12) + "..." + fp.slice(-8);
+      recvSignerHint.textContent = `Firmado por: desconocido (fingerprint ${short}). Pega la pub Ed25519 correspondiente.`;
+      recvSignerHint.classList.remove("hidden");
+    }
+  } catch { /* ignore */ }
+});
 
 $("#form-recv").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -564,6 +683,56 @@ $("#form-restore").addEventListener("submit", async (ev) => {
     showMsg(out, `Restaurada como "${info.name}".`, "info");
   } catch (err) {
     showMsg(out, "Error: " + (formatError(err)), "error");
+  }
+});
+
+// ── drag and drop de archivos ────────────────────────────────────────────
+//
+// Si sueltas un archivo en cualquier parte de la pagina:
+//   - termina en .sddh -> abre la pestana Verificar y descifrar y lo carga
+//   - cualquier otro    -> abre la pestana Cifrar y firmar y lo carga
+// Solo tomamos el primer archivo si vienen varios.
+
+const dropOverlay = $("#drop-overlay");
+let dragDepth = 0;
+
+function setFileInput(inputEl, file) {
+  // Construir un DataTransfer para meter el File en el <input type="file">
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  inputEl.files = dt.files;
+  // Disparar 'change' por si hay listeners (p.ej. auto-detect del firmante)
+  inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+window.addEventListener("dragenter", (ev) => {
+  if (!ev.dataTransfer?.types?.includes("Files")) return;
+  ev.preventDefault();
+  dragDepth++;
+  dropOverlay.classList.remove("hidden");
+});
+window.addEventListener("dragleave", (ev) => {
+  if (!ev.dataTransfer?.types?.includes("Files")) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) dropOverlay.classList.add("hidden");
+});
+window.addEventListener("dragover", (ev) => {
+  if (!ev.dataTransfer?.types?.includes("Files")) return;
+  ev.preventDefault();
+});
+window.addEventListener("drop", (ev) => {
+  if (!ev.dataTransfer?.types?.includes("Files")) return;
+  ev.preventDefault();
+  dragDepth = 0;
+  dropOverlay.classList.add("hidden");
+  const file = ev.dataTransfer.files?.[0];
+  if (!file) return;
+  if (file.name.toLowerCase().endsWith(".sddh")) {
+    switchView("secure-recv");
+    setFileInput($('#form-recv input[name="container"]'), file);
+  } else {
+    switchView("secure-send");
+    setFileInput($('#form-send input[name="file"]'), file);
   }
 });
 
