@@ -223,7 +223,58 @@ dialog code {
 .panel.detail h2 { font-size: 14px; }
 .panel.detail h2 span { font-weight: 500; color: var(--muted-2); }
 
-/* Toasts (sistema de origin/main: clases .toast-info, .toast-error) ---- */
+/* Picker de destinatarios --------------------------------------------- */
+.picker-field { display: flex; flex-direction: column; gap: 6px; }
+.field-label  { font-size: 12px; color: var(--muted); }
+.picker {
+  display: flex; flex-direction: column;
+  background: transparent; border: 1px solid var(--hairline-2);
+  border-radius: 4px; padding: 4px;
+  min-height: 60px;
+  max-height: 220px; overflow-y: auto;
+}
+.picker-item {
+  display: flex; gap: 10px; align-items: center;
+  padding: 6px 8px; border-radius: 4px;
+  cursor: pointer; flex-direction: row;
+  font-size: 13px;
+}
+.picker-item:hover { background: var(--bg-hover); }
+.picker-item input[type="checkbox"] { margin: 0; cursor: pointer; }
+.picker-item .picker-name { color: var(--text); }
+.picker-item .picker-meta {
+  margin-left: auto;
+  font: 11px ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  color: var(--muted);
+}
+.picker-empty { margin: 12px; font-size: 13px; }
+.external-pubs > summary {
+  cursor: pointer; padding: 4px 0; font-size: 13px;
+  list-style: none;
+}
+.external-pubs > summary::-webkit-details-marker { display: none; }
+.external-pubs[open] textarea { margin-top: 6px; }
+
+/* Drop overlay -------------------------------------------------------- */
+#drop-overlay {
+  position: fixed; inset: 0;
+  background: rgba(10, 10, 12, 0.85);
+  z-index: 999;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+.drop-card {
+  padding: 40px 56px;
+  border: 2px dashed var(--accent);
+  border-radius: 8px;
+  text-align: center;
+}
+.drop-card p { margin: 0; }
+.drop-card p:first-child { font-size: 16px; font-weight: 600; }
+.drop-card .muted { margin-top: 8px; font-size: 13px; }
+
+/* Toasts --------------------------------------------------------------- */
 #toasts {
   position: fixed;
   top: 16px;

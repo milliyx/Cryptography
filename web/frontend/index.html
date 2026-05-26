@@ -132,9 +132,16 @@
           <label>Password de la identidad firmante
             <input type="password" name="signer_pwd" required>
           </label>
-          <label>Llave publica X25519 de los destinatarios (raw hex, 64 chars, una por linea)
-            <textarea name="recipients" rows="3" placeholder="copia desde 'ver' en Identidades el campo 'X25519 pub (raw hex)'" required></textarea>
-          </label>
+          <div class="picker-field">
+            <span class="field-label">Destinatarios</span>
+            <div id="recipient-picker" class="picker">
+              <p class="picker-empty muted">No tienes identidades. Crea una en la pestana Identidades.</p>
+            </div>
+            <details class="external-pubs">
+              <summary class="muted">+ Pegar llaves publicas externas</summary>
+              <textarea name="external_recipients" rows="2" placeholder="Para destinatarios fuera de tu navegador. Una llave publica X25519 (64 hex) por linea."></textarea>
+            </details>
+          </div>
           <button type="submit" class="primary">Cifrar y firmar</button>
         </form>
         <p id="send-result" class="msg"></p>
@@ -149,6 +156,7 @@
         <form id="form-recv">
           <label>Contenedor (.sddh)
             <input type="file" name="container" required>
+            <span id="recv-signer-detected" class="muted hidden"></span>
           </label>
           <label>Identidad destinataria
             <select name="recipient" required></select>
@@ -208,6 +216,14 @@
 
   <!-- Toasts -------------------------------------------------------------- -->
   <div id="toasts" aria-live="polite"></div>
+
+  <!-- Overlay drag-drop --------------------------------------------------- -->
+  <div id="drop-overlay" class="hidden">
+    <div class="drop-card">
+      <p>Suelta el archivo aqui</p>
+      <p class="muted">.sddh para descifrar — cualquier otro tipo para cifrar</p>
+    </div>
+  </div>
 
   <!-- Modal generico para pedir un input o confirmar ---------------------- -->
   <dialog id="modal-prompt">
