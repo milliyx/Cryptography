@@ -579,6 +579,18 @@ SIGNATURE(64)     Ed25519 sobre TODO lo anterior
 
 ---
 
+## Estrategia de canonicalización
+
+Cada contenedor SDDV/SDDH serializa su cabecera en orden fijo con campos de longitud determinista (big-endian). No existen campos opcionales ni orden variable. Toda la cabecera se incluye íntegramente como AAD del cifrado AEAD antes de cualquier operación criptográfica. Cualquier reordenamiento, truncamiento o modificación de un solo byte en los metadatos invalida el TAG de autenticación y la operación falla antes de exponer datos.
+
+---
+
+## Comportamiento fail-closed
+
+Toda operación criptográfica sigue el principio de fallo cerrado: cualquier error de verificación (firma inválida, TAG AEAD incorrecto, nonce inesperado, identidad no autorizada, password incorrecto) lanza una excepción inmediatamente y aborta la operación. El sistema nunca retorna datos parciales ni plaintext si la verificación no fue exitosa. En particular, `secure_verify_and_decrypt` hace imposible saltarse la verificación de firma: si `InvalidSignature`, la fase de descifrado nunca se ejecuta.
+
+---
+
 ## Equipo
 
 | Nombre | GitHub |
