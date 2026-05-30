@@ -1,5 +1,5 @@
 """
-sddv_api.py — wrapper que expone funciones de crypto/ a JavaScript via Pyodide.
+sddv_api.py — wrapper que expone funciones de src/ a JavaScript via Pyodide.
 
 Cada funcion retorna dicts/bytes/strings sencillos para que `.toJs()` los
 convierta sin friccion. Excepciones suben tal cual; el lado JS las atrapa.
@@ -13,11 +13,11 @@ from typing import List, Optional
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-from crypto import kdf as _kdf
-from crypto import keystore_format as _ksf
-from crypto.keystore import KeyStore, IdentityAlreadyExistsError
-from crypto.keystore_backup import export_backup, import_backup
-from crypto.secure_send import (
+from src import kdf as _kdf
+from src import keystore_format as _ksf
+from src.keystore import KeyStore, IdentityAlreadyExistsError
+from src.keystore_backup import export_backup, import_backup
+from src.secure_send import (
     encrypt_and_sign_from_keystore,
     verify_and_decrypt_from_keystore,
 )

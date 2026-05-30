@@ -27,8 +27,8 @@ import struct
 import pytest
 from cryptography.exceptions import InvalidSignature, InvalidTag
 
-from crypto.aead import Algorithm
-from crypto.hybrid import (
+from src.aead import Algorithm
+from src.hybrid import (
     NONCE_SIZE,
     TAG_SIZE,
     _parse_hybrid_header,
@@ -36,8 +36,8 @@ from crypto.hybrid import (
     encrypt_for_recipients,
     generate_x25519_keypair,
 )
-from crypto.keys import generate_keypair, get_fingerprint
-from crypto.signatures import (
+from src.keys import generate_keypair, get_fingerprint
+from src.signatures import (
     SIGN_FOOTER_SIZE,
     SIGN_MAGIC,
     get_signer_fingerprint,
@@ -45,7 +45,7 @@ from crypto.signatures import (
     sign_hybrid_container,
     verify_hybrid_container,
 )
-from crypto.secure_send import (
+from src.secure_send import (
     secure_encrypt_and_sign,
     secure_verify_and_decrypt,
 )

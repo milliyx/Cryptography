@@ -5,14 +5,14 @@
 #
 # Decision de diseno clave: "zero-divergence" entre CLI y frontend
 # ----------------------------------------------------------------
-# El paso "Stage site" copia LITERALMENTE el directorio `crypto/` del repo
+# El paso "Stage site" copia LITERALMENTE el directorio `src/` del repo
 # junto al frontend. Esto garantiza que el codigo Python que ejecuta
 # Pyodide en el navegador sea EXACTAMENTE el mismo que el que cubren los
-# 300 tests del backend. Si en algun momento cambia `crypto/aead.py`, esa
+# 300 tests del backend. Si en algun momento cambia `src/aead.py`, esa
 # misma version sale al navegador al siguiente push a main.
 #
 # Alternativas consideradas (y rechazadas):
-# - Tener una copia de `crypto/` en `web/frontend/crypto/`: duplica el
+# - Tener una copia de `src/` en `web/frontend/src/`: duplica el
 #   codigo y abre la puerta a divergencias.
 # - Reimplementar en JavaScript: rompe el principio de "una sola fuente
 #   de verdad" criptografica y obligaria a duplicar los tests.
@@ -47,16 +47,16 @@ jobs:
           mkdir -p _site
           # 1) Copia el frontend (HTML/CSS/JS + sddv_api.py + pyodide-runtime.js)
           cp -r web/frontend/. _site/
-          # 2) Copia el modulo crypto/ del repo TAL CUAL — zero-divergence.
-          #    Pyodide lo descarga via fetch("./crypto/<modulo>.py") al
+          # 2) Copia el modulo src/ del repo TAL CUAL — zero-divergence.
+          #    Pyodide lo descarga via fetch("./src/<modulo>.py") al
           #    filesystem virtual y lo importa como cualquier paquete Python.
-          cp -r crypto _site/crypto
+          cp -r src _site/src
           # 3) Genera _manifest.json con la lista de .py para que el frontend
           #    haga auto-discovery en vez de mantener una lista hardcoded.
           #    Excluye __pycache__ y archivos auxiliares.
           python3 -c "
           import json, os
-          base = '_site/crypto'
+          base = '_site/src'
           files = sorted([
               f for f in os.listdir(base)
               if f.endswith('.py') and not f.startswith('_pycache')

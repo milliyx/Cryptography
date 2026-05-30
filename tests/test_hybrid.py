@@ -1,7 +1,7 @@
 """
 tests/test_hybrid.py
 ====================
-Tests unitarios para el modulo crypto/hybrid.py -- D3 del proyecto SDDV.
+Tests unitarios para el modulo src/hybrid.py -- D3 del proyecto SDDV.
 
 Ejecutar con:
     pytest tests/test_hybrid.py -v
@@ -16,8 +16,8 @@ import struct
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from crypto.aead import Algorithm, encrypt_file
-from crypto.hybrid import (
+from src.aead import Algorithm, encrypt_file
+from src.hybrid import (
     MAGIC_HYBRID,
     NONCE_SIZE,
     RECIPIENT_ENTRY_SIZE,

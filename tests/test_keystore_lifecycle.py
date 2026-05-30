@@ -22,15 +22,15 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from crypto.hybrid import generate_x25519_keypair
-from crypto.keystore import (
+from src.hybrid import generate_x25519_keypair
+from src.keystore import (
     IdentityExpiredError,
     IdentityNotFoundError,
     IdentityRevokedError,
     KeyStore,
     KeyStoreError,
 )
-from crypto.secure_send import (
+from src.secure_send import (
     encrypt_and_sign_from_keystore,
     verify_and_decrypt_from_keystore,
 )

@@ -1,5 +1,5 @@
 """
-crypto/keystore_format.py
+src/keystore_format.py
 =========================
 Formato JSON del keystore D6 y envelope AEAD que protege las llaves
 privadas en disco.
@@ -8,14 +8,14 @@ Responsabilidades:
   - Serializar / deserializar el bundle de llaves privadas
     (Ed25519 + X25519) hacia bytes.
   - Cifrar / descifrar ese bundle con AES-256-GCM usando una clave
-    derivada por crypto.kdf.
+    derivada por src.kdf.
   - Construir el dict JSON v1 del keystore y validar el esquema al
     leerlo desde disco.
 
 Lo que NO hace este modulo:
   - Pedir passwords ni manejar I/O de archivos (eso vive en
-    crypto/keystore.py, Fase 2).
-  - Derivar claves desde el password (eso vive en crypto/kdf.py).
+    src/keystore.py, Fase 2).
+  - Derivar claves desde el password (eso vive en src/kdf.py).
   - Decisiones de ciclo de vida (rotacion, revocacion, etc.).
 """
 

@@ -14,19 +14,19 @@ import pytest
 
 from cryptography.exceptions import InvalidTag
 
-from crypto.aead import (
+from src.aead import (
     encrypt_file,
     decrypt_file,
     DEFAULT_MAX_AGE,
     MAX_FUTURE_SKEW,
 )
-from crypto.hybrid import (
+from src.hybrid import (
     encrypt_for_recipients,
     decrypt_for_recipient,
     generate_x25519_keypair,
 )
-from crypto.keys import generate_keypair
-from crypto.secure_send import secure_encrypt_and_sign, secure_verify_and_decrypt
+from src.keys import generate_keypair
+from src.secure_send import secure_encrypt_and_sign, secure_verify_and_decrypt
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -85,7 +85,7 @@ class TestVuln001PathTraversal:
     def test_decrypt_file_defense_in_depth(self):
         """Aun si un atacante construye un contenedor con filename malicioso
         a mano, decrypt_file debe rechazarlo (defense-in-depth, CWE-22)."""
-        from crypto.aead import (
+        from src.aead import (
             MAGIC, VERSION, Algorithm, NONCE_SIZE, TAG_SIZE,
         )
         import struct
@@ -191,12 +191,12 @@ class TestVuln002ReplayAttack:
 # ═══════════════════════════════════════════════════════════════════════════
 
 import struct
-from crypto.aead import (
+from src.aead import (
     MAX_CIPHERTEXT_SIZE,
     validate_ciphertext_length,
     safe_path_join,
 )
-from crypto.hybrid import MAX_RECIPIENTS
+from src.hybrid import MAX_RECIPIENTS
 
 
 class TestVuln003CiphertextLengthCap:
@@ -222,7 +222,7 @@ class TestVuln003CiphertextLengthCap:
         # Buscar el campo ct_len: header + nonce(12), antes del ciphertext.
         # Lo manipulamos a 1 GiB.
         # Localizar offset: parseamos para conocer header_end.
-        from crypto.aead import _parse_header, NONCE_SIZE
+        from src.aead import _parse_header, NONCE_SIZE
         _, header_end = _parse_header(container)
         ct_len_offset = header_end + NONCE_SIZE
         manipulado = (
@@ -237,8 +237,8 @@ class TestVuln003CiphertextLengthCap:
         """Mismo ataque sobre contenedor SDDH."""
         priv, pub = generate_x25519_keypair()
         container = encrypt_for_recipients(b"hola", "doc.txt", [pub])
-        from crypto.hybrid import _parse_hybrid_header
-        from crypto.aead import NONCE_SIZE
+        from src.hybrid import _parse_hybrid_header
+        from src.aead import NONCE_SIZE
         _, header_end = _parse_hybrid_header(container)
         ct_len_offset = header_end + NONCE_SIZE
         manipulado = (
@@ -290,7 +290,7 @@ class TestVuln005ContainerTypeConfusion:
         priv, pub = generate_x25519_keypair()
         sddh = encrypt_for_recipients(b"hi", "doc.txt", [pub])
         # Cualquier key sirve — debe fallar antes en parseo
-        from crypto.aead import generate_key
+        from src.aead import generate_key
         with pytest.raises(ValueError, match="hibrido SDDH.*decrypt_for_recipient"):
             decrypt_file(sddh, generate_key())
 
@@ -334,7 +334,7 @@ class TestVuln006SafePathJoin:
 # VULN-007 — Password debil al guardar PEM PKCS8 (CWE-521)
 # ═══════════════════════════════════════════════════════════════════════════
 
-from crypto.keys import (
+from src.keys import (
     save_private_key,
     validate_password_strength,
     MIN_PASSWORD_LENGTH,

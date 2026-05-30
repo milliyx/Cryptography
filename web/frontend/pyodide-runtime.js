@@ -1,7 +1,7 @@
 // pyodide-runtime.js
 // Bootstrap de Pyodide para SDDV: carga el interprete, instala cryptography,
 // monta IndexedDB en /keystore para persistencia entre sesiones, y descarga
-// los modulos de crypto/ desde la misma ruta donde vive el sitio.
+// los modulos de src/ desde la misma ruta donde vive el sitio.
 //
 // Expone: initRuntime(onProgress) -> Promise<runtime>
 //   runtime = { pyodide, runPy(src, opts), persistKeystore() }
@@ -40,7 +40,7 @@ async function fetchJsonOrNull(url) {
   }
 }
 
-// Obtiene la lista de archivos crypto/ desde un manifest generado en
+// Obtiene la lista de archivos src/ desde un manifest generado en
 // build-time (workflow Pages) o desde el fallback estatico si no existe.
 // El manifest tiene forma: { "files": ["__init__.py", "aead.py", ...] }
 async function discoverCryptoFiles(baseUrl) {
@@ -73,22 +73,22 @@ export async function initRuntime(onProgress = () => {}) {
   pyodide.FS.mount(pyodide.FS.filesystems.IDBFS, {}, "/keystore");
   await syncfs(pyodide, true); // leer lo que ya hubiera en IndexedDB
 
-  // 4. descargar los modulos crypto/ y escribirlos al FS virtual
+  // 4. descargar los modulos src/ y escribirlos al FS virtual
   onProgress("Cargando modulos cripto...");
-  pyodide.FS.mkdirTree("/crypto");
-  // En produccion, crypto/ vive en la misma raiz del sitio gracias al workflow
+  pyodide.FS.mkdirTree("/src");
+  // En produccion, src/ vive en la misma raiz del sitio gracias al workflow
   // de Pages. En local servimos web/frontend con http.server y dejamos un
-  // enlace simbolico o copia; por defecto buscamos en `./crypto/`.
-  const base = new URL("./crypto/", document.baseURI).href;
+  // enlace simbolico o copia; por defecto buscamos en `./src/`.
+  const base = new URL("./src/", document.baseURI).href;
   const cryptoFiles = await discoverCryptoFiles(base);
   await Promise.all(
     cryptoFiles.map(async (f) => {
       const text = await fetchText(base + f);
-      pyodide.FS.writeFile(`/crypto/${f}`, text);
+      pyodide.FS.writeFile(`/src/${f}`, text);
     })
   );
 
-  // 5. hacer que `import crypto` funcione
+  // 5. hacer que `import src` funcione
   pyodide.runPython(`
 import sys
 if "/" not in sys.path:

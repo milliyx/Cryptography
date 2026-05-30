@@ -10,8 +10,8 @@ cd "$(project_root)"
 
 banner "07 · Demo end-to-end del ciclo D6"
 
-if [ ! -f demo_d6.py ]; then
-  fail "demo_d6.py no encontrado en $(pwd)"
+if [ ! -f examples/demo_d6.py ]; then
+  fail "demo_d6.py no encontrado en examples/"
   exit 1
 fi
 
@@ -25,7 +25,7 @@ echo "  6. Rotar las llaves de Alice (archivar las viejas)."
 echo "  7. Backup → borrar → restore con password distinto."
 
 subbanner "Ejecutando demo_d6.py"
-python3 demo_d6.py
+python3 examples/demo_d6.py
 RESULT=$?
 
 echo ""

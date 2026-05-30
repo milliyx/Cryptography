@@ -1,5 +1,5 @@
 """
-crypto/secure_send.py
+src/secure_send.py
 =====================
 API de alto nivel para el flujo D5 completo del SDDV.
 
@@ -38,12 +38,12 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PublicKey,
 )
 
-from crypto.aead import Algorithm, DEFAULT_MAX_AGE
-from crypto.hybrid import (
+from src.aead import Algorithm, DEFAULT_MAX_AGE
+from src.hybrid import (
     encrypt_for_recipients,
     decrypt_for_recipient,
 )
-from crypto.signatures import (
+from src.signatures import (
     sign_hybrid_container,
     verify_hybrid_container,
 )

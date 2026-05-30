@@ -1,5 +1,5 @@
 """
-crypto/keystore.py
+src/keystore.py
 ==================
 Capa de gestion del keystore D6.
 
@@ -9,7 +9,7 @@ vida: crear, listar, leer publicas, abrir privadas con password,
 cambiar password, rotar llaves, revocar y borrar.
 
 Backup y recuperacion (export_backup / import_backup) viven en
-crypto/keystore_backup.py (Fase 3 del plan D6).
+src/keystore_backup.py (Fase 3 del plan D6).
 
 Principios:
   - **No caching**: cada `unlock_*` re-lee el JSON, re-deriva la
@@ -182,7 +182,7 @@ class KeyStore:
     def list_identities(self) -> List[Dict[str, str]]:
         """
         Lista la metadata publica de todas las identidades del directorio.
-        NO descifra nada. Util para `python -m crypto list`.
+        NO descifra nada. Util para `python -m src list`.
         """
         out = []
         for p in sorted(self.dir.glob("*.json")):

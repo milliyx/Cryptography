@@ -1,7 +1,7 @@
 """
-crypto/__main__.py
+src/__main__.py
 ==================
-CLI del modulo crypto (D6 — gestion de llaves).
+CLI del modulo src (D6 — gestion de llaves).
 
 Subcomandos:
     init [name]
@@ -160,7 +160,7 @@ def _cmd_restore(args) -> int:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m crypto",
+        prog="python -m src",
         description="CLI del SDDV — D6 Key Management",
     )
     parser.add_argument(

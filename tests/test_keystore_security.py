@@ -21,13 +21,13 @@ from pathlib import Path
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from crypto.hybrid import encrypt_for_recipients, decrypt_for_recipient
-from crypto.keystore import (
+from src.hybrid import encrypt_for_recipients, decrypt_for_recipient
+from src.keystore import (
     IdentityAlreadyExistsError,
     KeyStore,
 )
-from crypto.keystore_backup import export_backup, import_backup
-from crypto.secure_send import (
+from src.keystore_backup import export_backup, import_backup
+from src.secure_send import (
     encrypt_and_sign_from_keystore,
     verify_and_decrypt_from_keystore,
 )

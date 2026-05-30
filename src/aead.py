@@ -1,5 +1,5 @@
 """
-crypto/aead.py
+src/aead.py
 ==============
 Modulo AEAD para la Boveda Digital Segura de Documentos (SDDV).
 
@@ -258,7 +258,7 @@ def _parse_header(data: bytes) -> Tuple[dict, int]:
         if data[:4] == b"SDDH":
             raise ValueError(
                 "Contenedor hibrido SDDH pasado a decrypt_file (D2). "
-                "Use decrypt_for_recipient (crypto.hybrid) para SDDH."
+                "Use decrypt_for_recipient (src.hybrid) para SDDH."
             )
         raise ValueError("Magic bytes invalidos - es esto un contenedor SDDV?")
     version = data[4]

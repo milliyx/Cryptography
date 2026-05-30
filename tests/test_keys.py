@@ -1,7 +1,7 @@
 """
 tests/test_keys.py
 ==================
-Tests unitarios para crypto/keys.py -- SDDV.
+Tests unitarios para src/keys.py -- SDDV.
 Ejecutar con: pytest tests/test_keys.py -v
 """
 import os
@@ -9,7 +9,7 @@ import tempfile
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from crypto.keys import (
+from src.keys import (
     generate_keypair,
     save_private_key,
     save_public_key,
@@ -148,7 +148,7 @@ def test_fingerprints_distintos_para_llaves_distintas():
     assert get_fingerprint(pub1) != get_fingerprint(pub2)
 
 def test_fingerprint_desde_archivo(keypair, tmp_base):
-    from crypto.keys import get_fingerprint_from_file
+    from src.keys import get_fingerprint_from_file
     _, pub = keypair
     path = tmp_base + PUBLIC_KEY_SUFFIX
     save_public_key(pub, path)

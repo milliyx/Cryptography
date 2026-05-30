@@ -11,7 +11,7 @@ Una aplicación para proteger documentos sensibles mediante criptografía modern
 
 SDDV se distribuye en **dos formas equivalentes**:
 
-- **CLI Python** — `python -m crypto`, ejecutable en cualquier máquina con Python ≥ 3.10.
+- **CLI Python** — `python -m src`, ejecutable en cualquier máquina con Python ≥ 3.10.
 - **Frontend web** — versión navegador 100% local construida con Pyodide. **Demo en vivo:** [`sergiocaballeroo.github.io/Cryptography`](https://sergiocaballeroo.github.io/Cryptography/). Sin servidores, sin cuentas: las llaves privadas literalmente nunca dejan el navegador del usuario.
 
 ## ¿Qué problema resuelve?
@@ -39,7 +39,7 @@ Este sistema aborda los tres aspectos mediante mecanismos criptográficos formal
 
 ```
 Proyecto/
-├── crypto/
+├── src/
 │   ├── aead.py              # D2 — Cifrado AEAD (AES-256-GCM, ChaCha20-Poly1305)
 │   ├── keys.py              # Gestión de llaves Ed25519 (PKCS8 PEM) — API legacy
 │   ├── signatures.py        # Firmas Ed25519 + wrappers para SDDH (D5)
@@ -49,7 +49,7 @@ Proyecto/
 │   ├── keystore_format.py   # D6 — Esquema JSON v1 + envelope AES-256-GCM
 │   ├── keystore.py          # D6 — KeyStore API (init/unlock/rotate/revoke/...)
 │   ├── keystore_backup.py   # D6 — export_backup / import_backup
-│   └── __main__.py          # D6 — CLI (python -m crypto <subcomando>)
+│   └── __main__.py          # D6 — CLI (python -m src <subcomando>)
 ├── tests/
 │   ├── test_aead.py                 # 27 tests — módulo AEAD
 │   ├── test_keys.py                 # 19 tests — gestión de llaves legacy
@@ -62,6 +62,12 @@ Proyecto/
 │   ├── test_keystore.py             # 37 tests — D6 API básica
 │   ├── test_keystore_lifecycle.py   # 21 tests — D6 rotate/revoke/change-pwd/expir
 │   └── test_keystore_security.py    # 20 tests — D6 rúbrica (stolen, modified, etc.)
+├── examples/
+│   ├── examples/demo.py                      # Demo D2 + D3 + D5
+│   ├── examples/demo_d6.py                   # Demo del ciclo de vida D6 (keystore)
+│   └── demo_paso_a_paso.py          # Demo paso a paso detallada
+├── keys/
+│   └── .gitkeep                     # Carpeta para llaves generadas
 ├── web/
 │   ├── README.md                    # Guía del frontend
 │   ├── dev-server.py                # Servidor estático local (puerto 5500)
@@ -70,7 +76,7 @@ Proyecto/
 │       ├── styles.css               # Tema dark + acento verde menta
 │       ├── app.js                   # Bridge JS ↔ Python (Pyodide)
 │       ├── pyodide-runtime.js       # Bootstrap Pyodide + IDBFS keystore
-│       └── sddv_api.py              # Adapter Python que expone crypto/ al navegador
+│       └── sddv_api.py              # Adapter Python que expone src/ al navegador
 ├── docs/
 │   ├── architecture.svg             # Diagrama de arquitectura
 │   ├── D1_Threat_Model.md           # D1 — Modelo de amenazas consolidado
@@ -78,9 +84,14 @@ Proyecto/
 │   ├── D5_Signature_Design.md       # D5 — Firmas Ed25519
 │   ├── D6_Key_Management.md         # D6 — Diseño del keystore y ciclo de vida
 │   ├── security_audit_report.md     # D4 — Auditoría de manipulación
-│   └── vulnerability_report.md      # Reporte de VULN-001..007
-├── demo.py                  # Demo D2 + D3 + D5
-├── demo_d6.py               # Demo del ciclo de vida D6 (keystore)
+│   ├── vulnerability_report.md      # Reporte de VULN-001..007
+│   ├── D2_Modulo_Cifrado_SDDV.docx  # Documento técnico D2
+│   ├── Integrantes_D2.pdf           # Lista de integrantes D2
+│   ├── sddv_d4.pdf                  # Presentación D4 PDF
+│   ├── sddv_d4.pptx                 # Presentación D4 PowerPoint
+│   ├── guion_presentacion.md        # Guión de presentación D4
+│   ├── security_audit_report.pdf    # Reporte de auditoría PDF
+│   └── vulnerability_report.pdf     # Reporte de vulnerabilidades PDF
 ├── requirements.txt
 └── README.md
 ```
@@ -212,13 +223,13 @@ pytest tests/test_security_patches.py -v
 
 ```bash
 # Demo D2 + D3 + D5
-python demo.py
+python examples/demo.py
 
 # Demo D6 (ciclo de vida del keystore)
-python demo_d6.py
+python examples/demo_d6.py
 ```
 
-`demo.py` ejecuta los 5 escenarios automáticamente:
+`examples/demo.py` ejecuta los 5 escenarios automáticamente:
 
 | # | Escenario | Resultado esperado |
 |---|-----------|-------------------|
@@ -228,7 +239,7 @@ python demo_d6.py
 | 4 | Archivo modificado → descifrado falla | ✔ `InvalidTag` en 3 variantes de ataque |
 | 5 | **D5 — Firmar + cifrar + verify-first + descifrar** | ✔ Bob/Carol descifran tras verificar; rechazo de re-firmado, metadata modificada y firma eliminada |
 
-`demo_d6.py` recorre el ciclo completo del key management:
+`examples/demo_d6.py` recorre el ciclo completo del key management:
 
 | # | Escenario | Resultado |
 |---|---|---|
@@ -247,14 +258,14 @@ python demo_d6.py
 SDDV cuenta con una **versión web** que ejecuta toda la criptografía
 dentro del navegador del usuario mediante [Pyodide](https://pyodide.org)
 (CPython compilado a WebAssembly). El frontend reutiliza **el mismo
-código `crypto/`** que el CLI; no hay reimplementación en JavaScript.
+código `src/`** que el CLI; no hay reimplementación en JavaScript.
 
 ### Características clave
 
 - **Zero-server.** No hay backend ni base de datos. Las llaves privadas
   viven en `IndexedDB` del navegador y nunca cruzan la red.
-- **Mismo código auditado.** Los módulos `crypto/aead.py`,
-  `crypto/hybrid.py`, `crypto/keystore.py`, etc. se descargan en
+- **Mismo código auditado.** Los módulos `src/aead.py`,
+  `src/hybrid.py`, `src/keystore.py`, etc. se descargan en
   Pyodide y se ejecutan ahí — los mismos 300 tests del backend cubren
   la lógica criptográfica del navegador.
 - **Persistencia transparente.** `IDBFS` monta `IndexedDB` en
@@ -271,7 +282,7 @@ python web/dev-server.py
 # → http://localhost:5500
 ```
 
-El servidor de desarrollo mapea `/crypto/*` al módulo del repo y todo
+El servidor de desarrollo mapea `/src/*` al módulo del repo y todo
 lo demás al directorio `web/frontend/`. Cero dependencias npm.
 
 ### Limitaciones conocidas (documentadas en `web/README.md`)
@@ -297,7 +308,7 @@ declarado como trade-off explícito en `web/README.md`.
 ### D2 — Cifrado simétrico (archivo individual)
 
 ```python
-from crypto.aead import encrypt_file, decrypt_file, Algorithm
+from src.aead import encrypt_file, decrypt_file, Algorithm
 
 # Cifrar
 with open("documento.pdf", "rb") as f:
@@ -319,7 +330,7 @@ print(f"Archivo: {metadata['filename']}")
 ### D3 — Cifrado híbrido multi-destinatario
 
 ```python
-from crypto.hybrid import (
+from src.hybrid import (
     generate_x25519_keypair,
     encrypt_for_recipients,
     decrypt_for_recipient,
@@ -345,9 +356,9 @@ print(f"Destinatarios: {fps}")
 ### Firmas digitales sobre contenedores SDDV (Encrypt-then-Sign)
 
 ```python
-from crypto.keys import generate_keypair
-from crypto.signatures import sign_container, verify_container
-from crypto.aead import encrypt_file, decrypt_file
+from src.keys import generate_keypair
+from src.signatures import sign_container, verify_container
+from src.aead import encrypt_file, decrypt_file
 
 priv, pub = generate_keypair()
 
@@ -367,9 +378,9 @@ plaintext, meta = decrypt_file(container_verificado, key)
 ### D5 — Cifrado híbrido + firma (API combinada, recomendado)
 
 ```python
-from crypto.secure_send import secure_encrypt_and_sign, secure_verify_and_decrypt
-from crypto.keys import generate_keypair                  # Ed25519 firmante
-from crypto.hybrid import generate_x25519_keypair         # X25519 destinatarios
+from src.secure_send import secure_encrypt_and_sign, secure_verify_and_decrypt
+from src.keys import generate_keypair                  # Ed25519 firmante
+from src.hybrid import generate_x25519_keypair         # X25519 destinatarios
 
 # Llaves
 alice_sign_priv, alice_sign_pub = generate_keypair()
@@ -400,48 +411,48 @@ La función combinada hace que sea **imposible saltarse la verificación**: si l
 El keystore D6 reemplaza el patrón "generar par + guardar PEM cifrado"
 por una capa que protege las llaves privadas con un KDF explícito
 (scrypt) y soporta el ciclo de vida completo. La API legacy de
-`crypto/keys.py` sigue disponible para compatibilidad.
+`src/keys.py` sigue disponible para compatibilidad.
 
 **CLI** — todas las contraseñas se piden con `getpass` para que no
 aparezcan en historiales de shell ni en `ps`:
 
 ```bash
 # Crear identidad (genera Ed25519 + X25519; cifra con scrypt+AES-GCM)
-python -m crypto init alice
+python -m src init alice
 
 # Listar identidades del keystore
-python -m crypto list
+python -m src list
 
 # Ver fingerprints (sin necesidad de password)
-python -m crypto fingerprint alice
+python -m src fingerprint alice
 
 # Cambiar password (re-cifra con nuevo salt y nonce; mismas llaves)
-python -m crypto change-password alice
+python -m src change-password alice
 
 # Rotar llaves (genera par nuevo, archiva el viejo)
-python -m crypto rotate alice
+python -m src rotate alice
 
 # Revocar (bloquea unlocks pero deja la pública consultable)
-python -m crypto revoke alice --reason "key compromise"
+python -m src revoke alice --reason "key compromise"
 
 # Backup con password independiente del operativo
-python -m crypto backup alice ./backups/alice.sddv_backup
+python -m src backup alice ./backups/alice.sddv_backup
 
 # Restaurar desde backup
-python -m crypto restore ./backups/alice.sddv_backup --name alice_restored
+python -m src restore ./backups/alice.sddv_backup --name alice_restored
 
 # Borrar (exige password correcto como prueba de autoría)
-python -m crypto delete alice
+python -m src delete alice
 
 # Override del directorio
-python -m crypto --keystore ./otro_dir list
+python -m src --keystore ./otro_dir list
 ```
 
 **API Python — flujo D5 desde el keystore (recomendado):**
 
 ```python
-from crypto.keystore import KeyStore
-from crypto.secure_send import (
+from src.keystore import KeyStore
+from src.secure_send import (
     encrypt_and_sign_from_keystore,
     verify_and_decrypt_from_keystore,
 )
@@ -471,7 +482,7 @@ plaintext, metadata = verify_and_decrypt_from_keystore(
 **Backup y recuperación:**
 
 ```python
-from crypto.keystore_backup import export_backup, import_backup
+from src.keystore_backup import export_backup, import_backup
 
 # Backup con password independiente
 export_backup(

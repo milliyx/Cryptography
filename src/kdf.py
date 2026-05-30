@@ -1,5 +1,5 @@
 """
-crypto/kdf.py
+src/kdf.py
 =============
 KDF (Key Derivation Function) explicito para el keystore D6.
 
@@ -104,7 +104,7 @@ def derive_key(password: str, salt: bytes, params: Dict[str, int]) -> bytes:
     Deriva una clave simetrica de 32 bytes a partir del password y el salt.
 
     No valida la fortaleza del password aqui -- esa validacion vive en
-    crypto.keys.validate_password_strength y se invoca antes de llamar
+    src.keys.validate_password_strength y se invoca antes de llamar
     a este derive_key (en KeyStore.init_identity / change_password).
 
     Lanza:

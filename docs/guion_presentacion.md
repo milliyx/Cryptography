@@ -65,8 +65,8 @@ Dr. Rocío Aldeco Pérez · Criptografía · UNAM 2026
 > de confianza del usuario: el archivo plano, el Keystore con las llaves Ed25519
 > y X25519, y la contraseña que cifra las llaves privadas en disco."
 
-> "En el centro está el motor criptográfico. El módulo crypto/aead.py maneja
-> AES-256-GCM y ChaCha20. crypto/keys.py gestiona las llaves. signatures.py
+> "En el centro está el motor criptográfico. El módulo src/aead.py maneja
+> AES-256-GCM y ChaCha20. src/keys.py gestiona las llaves. signatures.py
 > implementa Ed25519, y hybrid.py orquesta todo el flujo KEM+DEM."
 
 **Componentes:**
@@ -170,23 +170,23 @@ Dr. Rocío Aldeco Pérez · Criptografía · UNAM 2026
 > "Vamos a ejecutar cuatro escenarios en vivo. Tengo abierta la terminal."
 
 **Escenario 1 — Cifrar un archivo:**
-> *(ejecutar)* `python demo.py encrypt documento.txt`
+> *(ejecutar)* `python examples/demo.py encrypt documento.txt`
 > "encrypt_file() genera el contenedor SDDV. El archivo cifrado es binario puro,
 > nada legible. Resultado: Contenedor SDDV creado."
 
 **Escenario 2 — Compartir con otro usuario:**
-> *(ejecutar)* `python demo.py share documento.txt alice bob`
+> *(ejecutar)* `python examples/demo.py share documento.txt alice bob`
 > "encrypt_for_recipients() genera un contenedor SDDH con slots para Alice y Bob.
 > Alice y Bob aparecen como destinatarios autorizados en el AAD."
 
 **Escenario 3 — Descifrar como usuario autorizado:**
-> *(ejecutar)* `python demo.py decrypt contenedor.sddh alice`
+> *(ejecutar)* `python examples/demo.py decrypt contenedor.sddh alice`
 > "decrypt_for_recipient() busca el fingerprint de Alice, descifra su slot,
 > obtiene la file_key, descifra el contenido. Alice descifra correctamente.
 > Lo mismo funciona para Bob."
 
 **Escenario 4 — Fallo: no autorizado y tamper:**
-> *(ejecutar)* `python demo.py tamper contenedor.sddh`
+> *(ejecutar)* `python examples/demo.py tamper contenedor.sddh`
 > "Eve intenta descifrar — InvalidTag, acceso denegado.
 > Modificamos un byte del ciphertext — InvalidTag en ambos casos.
 > El sistema detecta cualquier alteración."

@@ -30,11 +30,16 @@ from __future__ import annotations
 
 import json
 import shutil
+import os
+import sys
 from pathlib import Path
 
-from crypto.keystore import KeyStore
-from crypto.keystore_backup import export_backup, import_backup
-from crypto.secure_send import (
+# Configurar sys.path para resolver el modulo 'src' en el directorio padre
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.keystore import KeyStore
+from src.keystore_backup import export_backup, import_backup
+from src.secure_send import (
     encrypt_and_sign_from_keystore,
     verify_and_decrypt_from_keystore,
 )

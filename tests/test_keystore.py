@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from crypto.keystore import (
+from src.keystore import (
     IdentityAlreadyExistsError,
     IdentityNotFoundError,
     KeyStore,
@@ -294,13 +294,13 @@ def test_list_identities_ignora_rotated(ks):
 # ── fingerprints consistentes con D5 ──────────────────────────────────────────
 
 def test_fingerprints_coinciden_con_get_fingerprint_de_keys(ks_alice):
-    """El fingerprint del JSON coincide con crypto.keys.get_fingerprint."""
-    from crypto.keys import get_fingerprint
+    """El fingerprint del JSON coincide con src.keys.get_fingerprint."""
+    from src.keys import get_fingerprint
     info = ks_alice.get_public_keys("alice")
     assert get_fingerprint(info["ed25519_pub"]) == info["fingerprints"]["ed25519"]
 
 
 def test_fingerprints_x25519_coincide_con_hybrid(ks_alice):
-    from crypto.hybrid import get_x25519_fingerprint
+    from src.hybrid import get_x25519_fingerprint
     info = ks_alice.get_public_keys("alice")
     assert get_x25519_fingerprint(info["x25519_pub"]) == info["fingerprints"]["x25519"]

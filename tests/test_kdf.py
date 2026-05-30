@@ -12,8 +12,8 @@ Cubre:
 
 import pytest
 
-from crypto import kdf
-from crypto.kdf import (
+from src import kdf
+from src.kdf import (
     DEFAULT_KDF_PARAMS,
     SALT_SIZE,
     derive_key,

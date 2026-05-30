@@ -1,8 +1,8 @@
 """Servidor local para desarrollar el frontend del SDDV.
 
-En produccion el sitio se publica en GitHub Pages con `crypto/` y los archivos
+En produccion el sitio se publica en GitHub Pages con `src/` y los archivos
 del frontend al mismo nivel; aqui replicamos esa estructura sirviendo
-`web/frontend/` como raiz y mapeando `/crypto/` al `crypto/` de la raiz del repo.
+`web/frontend/` como raiz y mapeando `/src/` al `src/` de la raiz del repo.
 
 Uso:
     python web/dev-server.py
@@ -18,13 +18,13 @@ from pathlib import Path
 
 ROOT   = Path(__file__).resolve().parent.parent
 FRONT  = ROOT / "web" / "frontend"
-CRYPTO = ROOT / "crypto"
+SRC = ROOT / "src"
 PORT   = 5500
 
 
 def _crypto_manifest() -> dict:
-    """Lista los .py de crypto/ para que el frontend haga auto-discovery."""
-    files = sorted(p.name for p in CRYPTO.glob("*.py"))
+    """Lista los .py de src/ para que el frontend haga auto-discovery."""
+    files = sorted(p.name for p in SRC.glob("*.py"))
     if "__init__.py" in files:
         files.remove("__init__.py")
         files.insert(0, "__init__.py")
@@ -33,9 +33,9 @@ def _crypto_manifest() -> dict:
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # type: ignore[override]
-        # Interceptar /crypto/_manifest.json para generarlo on-the-fly
+        # Interceptar /src/_manifest.json para generarlo on-the-fly
         # (en produccion lo genera el workflow de Pages).
-        if self.path.split("?", 1)[0] == "/crypto/_manifest.json":
+        if self.path.split("?", 1)[0] == "/src/_manifest.json":
             body = json.dumps(_crypto_manifest(), indent=2).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -47,9 +47,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def translate_path(self, path: str) -> str:
         clean = path.split("?", 1)[0].split("#", 1)[0]
-        if clean == "/crypto" or clean.startswith("/crypto/"):
-            rel = clean[len("/crypto"):].lstrip("/")
-            return str(CRYPTO / rel)
+        if clean == "/src" or clean.startswith("/src/"):
+            rel = clean[len("/src"):].lstrip("/")
+            return str(SRC / rel)
         rel = clean.lstrip("/")
         return str(FRONT / rel) if rel else str(FRONT / "index.html")
 
@@ -85,7 +85,7 @@ def main():
         url = f"http://localhost:{PORT}"
         print(f"Sirviendo SDDV en {url}")
         print(f"  frontend: {FRONT}")
-        print(f"  crypto:   {CRYPTO}")
+        print(f"  src:   {SRC}")
         print("Ctrl+C para parar.\n")
         try:
             httpd.serve_forever()

@@ -35,23 +35,23 @@ def header(n, title):
     print(f"{BOLD}{YELLOW}{'─'*60}{RESET}")
 
 # ── imports del proyecto ──────────────────────────────────────────────────────
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from crypto.aead      import encrypt_file, decrypt_file, Algorithm
-from crypto.keys      import generate_keypair, get_fingerprint
-from crypto.signatures import (
+from src.aead      import encrypt_file, decrypt_file, Algorithm
+from src.keys      import generate_keypair, get_fingerprint
+from src.signatures import (
     sign_container, verify_container,
     sign_hybrid_container, verify_hybrid_container,
     get_signer_fingerprint, SIGN_FOOTER_SIZE,
 )
-from crypto.hybrid    import (
+from src.hybrid    import (
     generate_x25519_keypair,
     encrypt_for_recipients,
     decrypt_for_recipient,
     get_recipient_fingerprints,
     get_x25519_fingerprint,
 )
-from crypto.secure_send import (
+from src.secure_send import (
     secure_encrypt_and_sign,
     secure_verify_and_decrypt,
 )
@@ -182,7 +182,7 @@ def escenario_4():
     h_container = encrypt_for_recipients(DOCUMENTO, FILENAME, [alice_pub])
     tampered3 = bytearray(h_container)
     # Corromper fingerprint del destinatario en el AAD
-    from crypto.hybrid import _parse_hybrid_header
+    from src.hybrid import _parse_hybrid_header
     import struct
     fname_len = struct.unpack(">H", h_container[14:16])[0]
     fp_start  = 16 + fname_len + 2

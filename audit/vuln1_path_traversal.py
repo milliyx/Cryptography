@@ -29,8 +29,8 @@ import os
 import sys
 import tempfile
 
-from crypto.aead import encrypt_file, decrypt_file
-from crypto.hybrid import (
+from src.aead import encrypt_file, decrypt_file
+from src.hybrid import (
     encrypt_for_recipients,
     decrypt_for_recipient,
     generate_x25519_keypair,
@@ -50,7 +50,7 @@ def step(label, value=""):
 # ───── Caso 1: SDDV (cifrado simetrico) ──────────────────────────────────────
 
 def reproducir_path_traversal_sddv():
-    banner("CASO 1 — Path traversal en SDDV (crypto/aead.py)")
+    banner("CASO 1 — Path traversal en SDDV (src/aead.py)")
 
     payload = b"<contenido malicioso del atacante>"
 
@@ -86,7 +86,7 @@ def reproducir_path_traversal_sddv():
 # ───── Caso 2: SDDH (cifrado hibrido) ────────────────────────────────────────
 
 def reproducir_path_traversal_sddh():
-    banner("CASO 2 — Path traversal en SDDH (crypto/hybrid.py)")
+    banner("CASO 2 — Path traversal en SDDH (src/hybrid.py)")
 
     payload = b"<payload del atacante>"
     bob_priv, bob_pub = generate_x25519_keypair()

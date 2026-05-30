@@ -32,14 +32,14 @@ Reproduccion:
 import time
 from datetime import datetime, timezone
 
-from crypto.aead import encrypt_file, decrypt_file
-from crypto.hybrid import (
+from src.aead import encrypt_file, decrypt_file
+from src.hybrid import (
     encrypt_for_recipients,
     decrypt_for_recipient,
     generate_x25519_keypair,
 )
-from crypto.keys import generate_keypair
-from crypto.secure_send import secure_encrypt_and_sign, secure_verify_and_decrypt
+from src.keys import generate_keypair
+from src.secure_send import secure_encrypt_and_sign, secure_verify_and_decrypt
 
 
 def banner(text):
@@ -55,7 +55,7 @@ def fmt_ts(ts):
 # ───── Caso 1: Replay de SDDV simple ─────────────────────────────────────────
 
 def reproducir_replay_sddv():
-    banner("CASO 1 — Replay sobre SDDV (crypto/aead.py)")
+    banner("CASO 1 — Replay sobre SDDV (src/aead.py)")
 
     plaintext = b"Transferir $1000 de Alice a Bob"
 

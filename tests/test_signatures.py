@@ -1,16 +1,16 @@
 """
 tests/test_signatures.py
 ========================
-Tests unitarios para crypto/signatures.py — Fase 3 del SDDV.
+Tests unitarios para src/signatures.py — Fase 3 del SDDV.
 Ejecutar con: pytest tests/test_signatures.py -v
 """
 import os
 import pytest
 from cryptography.exceptions import InvalidSignature
 
-from crypto.keys import generate_keypair, get_fingerprint
-from crypto.aead import encrypt_file, decrypt_file
-from crypto.signatures import (
+from src.keys import generate_keypair, get_fingerprint
+from src.aead import encrypt_file, decrypt_file
+from src.signatures import (
     sign_container,
     verify_container,
     get_signer_fingerprint,
@@ -137,7 +137,7 @@ def test_contenedor_sin_firma_falla(container, alice):
 
 def test_flujo_completo_encrypt_then_sign(alice):
     """Cifrar, firmar, verificar y descifrar — flujo completo."""
-    from crypto.aead import decrypt_file
+    from src.aead import decrypt_file
 
     container, key = encrypt_file(PLAINTEXT, FILENAME)
 
@@ -153,7 +153,7 @@ def test_flujo_completo_encrypt_then_sign(alice):
 
 def test_flujo_encrypt_then_sign_con_chacha20(alice):
     """Flujo completo Encrypt-then-Sign usando ChaCha20-Poly1305."""
-    from crypto.aead import Algorithm
+    from src.aead import Algorithm
 
     container, key = encrypt_file(PLAINTEXT, FILENAME, algo=Algorithm.CHACHA20_POLY1305)
 
@@ -165,7 +165,7 @@ def test_flujo_encrypt_then_sign_con_chacha20(alice):
 
 def test_no_descifrar_si_firma_invalida(alice, bob):
     """Si la firma falla, no se debe llegar a descifrar."""
-    from crypto.aead import decrypt_file
+    from src.aead import decrypt_file
 
     container, key = encrypt_file(PLAINTEXT, FILENAME)
     signed         = sign_container(container, alice["priv"])

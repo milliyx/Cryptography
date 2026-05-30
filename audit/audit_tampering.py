@@ -10,7 +10,7 @@ y muestra TODOS los procesos involucrados:
   - Excepcion lanzada con traceback completo
   - Interpretacion del resultado
 
-Uso (desde la raiz del repo, para que PYTHONPATH resuelva 'crypto.*'):
+Uso (desde la raiz del repo, para que PYTHONPATH resuelva 'src.*'):
     PYTHONPATH=. python3 audit/audit_tampering.py             # corre todos
     PYTHONPATH=. python3 audit/audit_tampering.py --test 1    # solo test N (1..5)
 """
@@ -21,16 +21,16 @@ import traceback
 
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from crypto.aead import encrypt_file, decrypt_file
-from crypto.hybrid import (
+from src.aead import encrypt_file, decrypt_file
+from src.hybrid import (
     encrypt_for_recipients,
     decrypt_for_recipient,
     generate_x25519_keypair,
     get_x25519_fingerprint,
 )
-from crypto.keys import generate_keypair
-from crypto.secure_send import secure_encrypt_and_sign, secure_verify_and_decrypt
-from crypto.signatures import sign_container, verify_container
+from src.keys import generate_keypair
+from src.secure_send import secure_encrypt_and_sign, secure_verify_and_decrypt
+from src.signatures import sign_container, verify_container
 
 
 # ───── helpers de presentacion ────────────────────────────────────────────────

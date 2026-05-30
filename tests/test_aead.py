@@ -1,7 +1,7 @@
 """
 tests/test_aead.py
 ==================
-Tests unitarios para el módulo crypto/aead.py — D2 del proyecto SDDV.
+Tests unitarios para el módulo src/aead.py — D2 del proyecto SDDV.
 
 Ejecutar con:
     pytest tests/test_aead.py -v
@@ -16,7 +16,7 @@ import struct
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from crypto.aead import (
+from src.aead import (
     Algorithm,
     NONCE_SIZE,
     TAG_SIZE,

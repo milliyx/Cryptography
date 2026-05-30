@@ -17,8 +17,8 @@ import json
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from crypto.kdf import generate_salt, derive_key
-from crypto.keystore_format import (
+from src.kdf import generate_salt, derive_key
+from src.keystore_format import (
     KEYSTORE_VERSION,
     ENVELOPE_NONCE_SIZE,
     ENVELOPE_TAG_SIZE,
@@ -28,8 +28,8 @@ from crypto.keystore_format import (
     unlock_keystore_dict,
     validate_keystore_schema,
 )
-from crypto.keys import generate_keypair as generate_ed25519_keypair
-from crypto.hybrid import generate_x25519_keypair
+from src.keys import generate_keypair as generate_ed25519_keypair
+from src.hybrid import generate_x25519_keypair
 
 
 # Parametros pequenos para velocidad de tests (n=2**10 ~ instantaneo).

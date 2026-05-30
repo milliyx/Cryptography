@@ -1,5 +1,5 @@
 """
-crypto/hybrid.py
+src/hybrid.py
 ================
 Cifrado hibrido multi-destinatario para la Boveda Digital Segura de Documentos (SDDV).
 Entregable D3 del proyecto.
@@ -59,7 +59,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from crypto.aead import (
+from src.aead import (
     Algorithm,
     NONCE_SIZE,
     TAG_SIZE,
