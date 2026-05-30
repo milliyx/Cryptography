@@ -174,7 +174,7 @@ Proyecto/
 
 ```bash
 # Clonar el repositorio
-git clone git@github.com:milliyx/Cryptography.git
+git clone git@github.com:sergiocaballeroo/Cryptography.git
 cd Cryptography
 
 # Instalar dependencias (cryptography>=41, pytest>=7)
@@ -261,7 +261,7 @@ código `crypto/`** que el CLI; no hay reimplementación en JavaScript.
   `/keystore` dentro del filesystem virtual de Pyodide. Cierras la
   pestaña, vuelves, las identidades siguen ahí.
 - **Demo en vivo.** Publicado vía GitHub Pages en
-  [`milliyx.github.io/Cryptography`](https://milliyx.github.io/Cryptography).
+  [`sergiocaballeroo.github.io/Cryptography`](https://sergiocaballeroo.github.io/Cryptography/).
 
 ### Cómo correr localmente
 
