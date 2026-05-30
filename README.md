@@ -12,7 +12,7 @@ Una aplicación para proteger documentos sensibles mediante criptografía modern
 SDDV se distribuye en **dos formas equivalentes**:
 
 - **CLI Python** — `python -m crypto`, ejecutable en cualquier máquina con Python ≥ 3.10.
-- **Frontend web** — versión navegador 100% local construida con Pyodide. **Demo en vivo:** [`milliyx.github.io/Cryptography`](https://milliyx.github.io/Cryptography). Sin servidores, sin cuentas: las llaves privadas literalmente nunca dejan el navegador del usuario.
+- **Frontend web** — versión navegador 100% local construida con Pyodide. **Demo en vivo:** [`sergiocaballeroo.github.io/Cryptography`](https://sergiocaballeroo.github.io/Cryptography/). Sin servidores, sin cuentas: las llaves privadas literalmente nunca dejan el navegador del usuario.
 
 ## ¿Qué problema resuelve?
 
